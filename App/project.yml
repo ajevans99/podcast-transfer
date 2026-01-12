@@ -1,0 +1,31 @@
+name: PodcastTransfer
+options:
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  PodcastTransfer:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: ../Sources/PodcastTransferApp
+    dependencies:
+      - package: PodcastTransfer
+        product: PodcastTransferUI
+      - package: PodcastTransfer
+        product: PodcastTransferFeature
+      - package: PodcastTransfer
+        product: PodcastTransferCore
+    settings:
+      PRODUCT_NAME: PodcastTransfer
+      PRODUCT_BUNDLE_IDENTIFIER: com.example.podcasttransfer
+      SWIFT_VERSION: 6.0
+      GENERATE_INFOPLIST_FILE: YES
+packages:
+  PodcastTransfer:
+    path: ..
+schemes:
+  PodcastTransfer:
+    build:
+      targets:
+        PodcastTransfer: all
