@@ -1,44 +1,44 @@
-# spm-template
+## Podcast Transfer (macOS SwiftUI)
 
-[![CI](https://github.com/ajevans99/spm-template/actions/workflows/ci.yml/badge.svg)](https://github.com/ajevans99/spm-template/actions/workflows/ci.yml)
+A Swift 6 macOS SwiftUI app that scans downloaded Apple Podcasts from
+`~/Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Podcasts`
+and copies them to an external MP3 device in one click. The codebase is fully modular
+with swift-dependencies, swift-sharing, and snapshot-ready SwiftUI views.
 
-<!-- Add after SPI published
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fajevans99%2Fspm-template%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/ajevans99/spm-template)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fajevans99%2Fspm-template%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/ajevans99/spm-template) -->
+### Modules
 
-A minimal Swift Package template targeting Swift 6.0+ with modern Swift Testing, CI for Linux/macOS/iOS, SPI config, and swift-format.
+- PodcastTransferCore — models, library scanning client, transfer client, shared destination key
+- PodcastTransferFeature — `@Observable` view model orchestration using swift-dependencies
+- PodcastTransferUI — SwiftUI views (list, destination picker, transfer status)
+- PodcastTransferApp — macOS app entry point
+- Playground — simple CLI harness for preview data
 
-> [!TIP]
-> The [`app` branch](https://github.com/ajevans99/spm-template/tree/app) contains an Xcode project template in `AppTemplate/` for creating iOS/macOS apps that links against the package in `Sources/SPMTemplate/` and has CI to build apps.
+### Quick start
 
-## Usage
+1. Generate the Xcode project (kept out of git):
 
-Add this package as a dependency, then:
-
-```swift
-import SPMTemplate
-
-let greeter = SPMTemplate()
-print(greeter.greet(name: "World"))
+```
+cd App
+xcodegen generate
+open PodcastTransfer.xcodeproj
 ```
 
-## Development
+2. Build and run the macOS app target `PodcastTransfer`.
 
-- Format code with `make format`
-- Lint with `make lint`
-- Run tests: `swift test`
+3. CLI sample: `swift run --package-path . Playground`
 
-## License
+### Testing
 
-MIT. See `LICENSE`.
+- Unit tests: `swift test --filter PodcastTransferCoreTests`
+- Snapshot tests: set `RECORD_SNAPSHOTS=1` the first time to record baselines, then `swift test --filter PodcastTransferSnapshotTests`
 
-## Template Renaming
+### Tooling
 
-To quickly rename this template to your own package/target names:
+- Format: `make format`
+- Lint: `make lint`
 
-1. Open `.github/prompts/rename-swift-template.prompt.md`.
-2. Provide inputs:
-   - `oldName`: current module identifier (default: `SPMTemplate`)
-   - `newPackageName`: your package in kebab-case (e.g. `swift-my-library`)
-   - `newTargetName`: your primary module in PascalCase (e.g. `MyLibrary`)
-3. Run the prompt with your AI assistant.
+### Dependencies
+
+- [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) (>= 1.10.0)
+- [swift-sharing](https://github.com/pointfreeco/swift-sharing) (>= 2.7.4)
+- [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing) (>= 1.18.7) for UI snapshots

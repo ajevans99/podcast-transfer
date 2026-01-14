@@ -1,4 +1,9 @@
-import SPMTemplate
+import PodcastTransferCore
 
-let greeter = SPMTemplate()
-print(greeter.greet(name: "Playground"))
+@main
+enum PlaygroundMain {
+  static func main() async throws {
+    let episodes = try await PodcastLibraryClient.preview.loadEpisodes()
+    print("Preview episodes available: \(episodes.count)")
+  }
+}

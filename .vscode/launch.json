@@ -18,6 +18,26 @@
       "name": "Debug Playground",
       "program": "${workspaceFolder:spm-template}/.build/debug/Playground",
       "preLaunchTask": "swift: Build Debug Playground"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:podcast-transfer}",
+      "name": "Debug PodcastTransferApp",
+      "target": "PodcastTransferApp",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug PodcastTransferApp"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:podcast-transfer}",
+      "name": "Release PodcastTransferApp",
+      "target": "PodcastTransferApp",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release PodcastTransferApp"
     }
   ]
 }

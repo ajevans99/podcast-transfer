@@ -6,6 +6,11 @@
 .swiftpm/
 Package.resolved
 DerivedData/
+build/
+App/build/
+
+# XcodeGen outputs
+App/PodcastTransfer.xcodeproj/
 
 # VSCode
 .vscode/*
