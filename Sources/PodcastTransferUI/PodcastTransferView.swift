@@ -22,7 +22,9 @@ public struct PodcastTransferView: View {
   ]
   @State private var tableSelectedEpisodeIDs: Set<String> = []
   @State private var lastTableSelectedEpisodeIDs: Set<String> = []
-  @State private var isDestinationInspectorPresented: Bool = true
+  @State private var isDestinationInspectorPresented = true
+  @State private var showTransferSuccess = false
+  @State private var successPulse = false
 
   public init(viewModel: PodcastTransferViewModel = PodcastTransferViewModel()) {
     _viewModel = State(initialValue: viewModel)
@@ -30,71 +32,121 @@ public struct PodcastTransferView: View {
 
   public var body: some View {
     NavigationStack {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack {
-          Text("Source")
-            .font(.headline)
-          Spacer()
-          Picker("View", selection: $sourcePresentation) {
-            Text("Grouped").tag(SourcePresentation.grouped)
-            Text("Table").tag(SourcePresentation.table)
+      ZStack(alignment: .bottomTrailing) {
+        VStack(alignment: .leading, spacing: 12) {
+          HStack {
+            Text("Source")
+              .font(.headline)
+            Spacer()
           }
-          .pickerStyle(.segmented)
-          .frame(maxWidth: 260)
-        }
 
-        TransferControlsView(
-          selectionCount: viewModel.selectedEpisodeIDs.count,
-          canSelectAny: !viewModel.episodes.isEmpty,
-          destinationLabel: viewModel.persistedDestination?.lastPathComponent,
-          isLoading: viewModel.isLoading,
-          isTransferring: isTransferring(from: viewModel.state),
-          onTransfer: { Task { await viewModel.transferAll() } },
-          onSelectAll: { viewModel.selectAll() },
-          onClearSelection: { viewModel.clearSelection() },
-          onRefresh: {
+          StatusSummaryView(state: viewModel.state, isLoading: viewModel.isLoading)
+
+          SourceEpisodesView(
+            presentation: sourcePresentation,
+            episodes: viewModel.episodes,
+            selectedEpisodeIDs: viewModel.selectedEpisodeIDs,
+            tableSelectedEpisodeIDs: $tableSelectedEpisodeIDs,
+            isLoading: viewModel.isLoading,
+            sortOrder: $sortOrder,
+            artworkLoader: artworkLoader,
+            onToggle: { viewModel.toggleSelection(for: $0) },
+            onTableSelectionChanged: { newSelection in
+              let oldSelection = lastTableSelectedEpisodeIDs
+              let added = newSelection.subtracting(oldSelection)
+              let removed = oldSelection.subtracting(newSelection)
+
+              for episodeID in added {
+                if let episode = viewModel.episodes.first(where: { $0.id == episodeID }) {
+                  viewModel.toggleSelection(for: episode)
+                }
+              }
+              for episodeID in removed {
+                if let episode = viewModel.episodes.first(where: { $0.id == episodeID }) {
+                  viewModel.toggleSelection(for: episode)
+                }
+              }
+
+              lastTableSelectedEpisodeIDs = newSelection
+            },
+            onRefresh: {
+              await viewModel.loadEpisodes()
+              await viewModel.loadDestinationEpisodes()
+            }
+          )
+        }
+        .padding()
+
+        VStack(alignment: .trailing, spacing: 10) {
+          if showTransferSuccess {
+            Image(systemName: "checkmark.circle.fill")
+              .font(.system(size: 28))
+              .foregroundStyle(.green)
+              .scaleEffect(successPulse ? 1.0 : 0.6)
+              .opacity(successPulse ? 1.0 : 0.0)
+              .animation(.spring(response: 0.35, dampingFraction: 0.6), value: successPulse)
+              .transition(.scale.combined(with: .opacity))
+          }
+
+          Button {
+            Task { await viewModel.transferAll() }
+          } label: {
+            Label(transferToolbarTitle, systemImage: "externaldrive.fill")
+              .font(.headline)
+              .padding(.horizontal, 16)
+              .padding(.vertical, 10)
+              .background(Color.accentColor)
+              .foregroundStyle(.white)
+              .clipShape(Capsule())
+              .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+          }
+          .buttonStyle(.plain)
+          .disabled(!isTransferEnabled)
+          .opacity(isTransferEnabled ? 1.0 : 0.6)
+        }
+        .padding(.trailing, 22)
+        .padding(.bottom, 22)
+      }
+      .navigationTitle("Podcast Transfer")
+      .toolbar {
+        ToolbarItemGroup(placement: .navigation) {
+          Menu {
+            Picker("View", selection: $sourcePresentation) {
+              Label("Grouped", systemImage: "list.bullet.rectangle")
+                .tag(SourcePresentation.grouped)
+              Label("Table", systemImage: "tablecells")
+                .tag(SourcePresentation.table)
+            }
+            .pickerStyle(.inline)
+          } label: {
+            Label("View", systemImage: "line.3.horizontal.decrease.circle")
+          }
+
+          Menu {
+            Button("Select All") {
+              viewModel.selectAll()
+            }
+            .keyboardShortcut("a", modifiers: [.command])
+
+            Button("Clear Selection") {
+              viewModel.clearSelection()
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+          } label: {
+            Label("Selection", systemImage: "checkmark.circle")
+          }
+
+          Button {
             Task {
               await viewModel.loadEpisodes()
               await viewModel.loadDestinationEpisodes()
             }
-          },
-          onShowDestination: { isDestinationInspectorPresented = true }
-        )
-
-        StatusSummaryView(state: viewModel.state, isLoading: viewModel.isLoading)
-
-        SourceEpisodesView(
-          presentation: sourcePresentation,
-          episodes: viewModel.episodes,
-          selectedEpisodeIDs: viewModel.selectedEpisodeIDs,
-          tableSelectedEpisodeIDs: $tableSelectedEpisodeIDs,
-          isLoading: viewModel.isLoading,
-          sortOrder: $sortOrder,
-          artworkLoader: artworkLoader,
-          onToggle: { viewModel.toggleSelection(for: $0) },
-          onTableSelectionChanged: { newSelection in
-            let oldSelection = lastTableSelectedEpisodeIDs
-            let added = newSelection.subtracting(oldSelection)
-            let removed = oldSelection.subtracting(newSelection)
-
-            for episodeID in added {
-              if let episode = viewModel.episodes.first(where: { $0.id == episodeID }) {
-                viewModel.toggleSelection(for: episode)
-              }
-            }
-            for episodeID in removed {
-              if let episode = viewModel.episodes.first(where: { $0.id == episodeID }) {
-                viewModel.toggleSelection(for: episode)
-              }
-            }
-
-            lastTableSelectedEpisodeIDs = newSelection
+          } label: {
+            Label("Refresh", systemImage: "arrow.clockwise")
           }
-        )
-      }
-      .padding()
-      .navigationTitle("Podcast Transfer")
-      .toolbar {
+          .keyboardShortcut("r", modifiers: [.command])
+        }
+
         ToolbarItem(placement: .automatic) {
           Button {
             isDestinationInspectorPresented.toggle()
@@ -137,6 +189,23 @@ public struct PodcastTransferView: View {
         lastTableSelectedEpisodeIDs = viewModel.selectedEpisodeIDs
       }
     }
+    .onChange(of: viewModel.state) { _, newValue in
+      if case .finished = newValue {
+        playCompletionSound()
+        showTransferSuccess = true
+        successPulse = false
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+          successPulse = true
+        }
+        Task {
+          try? await Task.sleep(for: .seconds(1.5))
+          withAnimation(.easeOut(duration: 0.3)) {
+            showTransferSuccess = false
+            successPulse = false
+          }
+        }
+      }
+    }
     .fileImporter(
       isPresented: $isImporterPresented,
       allowedContentTypes: [.folder],
@@ -174,6 +243,25 @@ public struct PodcastTransferView: View {
     if case .inProgress = state { return true }
     return false
   }
+
+  private func playCompletionSound() {
+    #if os(macOS)
+      NSSound(named: "Glass")?.play()
+    #endif
+  }
+
+  private var isTransferEnabled: Bool {
+    viewModel.persistedDestination != nil
+      && viewModel.isLoading == false
+      && isTransferring(from: viewModel.state) == false
+      && viewModel.selectedEpisodeIDs.isEmpty == false
+  }
+
+  private var transferToolbarTitle: String {
+    let count = viewModel.selectedEpisodeIDs.count
+    guard count > 0 else { return "Transfer" }
+    return "Transfer \(count)"
+  }
 }
 
 private enum SourcePresentation: String, CaseIterable, Sendable {
@@ -191,6 +279,7 @@ private struct SourceEpisodesView: View {
   var artworkLoader: ArtworkLoader
   var onToggle: (PodcastEpisode) -> Void
   var onTableSelectionChanged: (Set<String>) -> Void
+  var onRefresh: () async -> Void
 
   var body: some View {
     switch presentation {
@@ -200,7 +289,8 @@ private struct SourceEpisodesView: View {
         selectedEpisodeIDs: selectedEpisodeIDs,
         isLoading: isLoading,
         artworkLoader: artworkLoader,
-        onToggle: onToggle
+        onToggle: onToggle,
+        onRefresh: onRefresh
       )
 
     case .table:
@@ -210,7 +300,8 @@ private struct SourceEpisodesView: View {
         isLoading: isLoading,
         sortOrder: $sortOrder,
         artworkLoader: artworkLoader,
-        onSelectionChanged: onTableSelectionChanged
+        onSelectionChanged: onTableSelectionChanged,
+        onRefresh: onRefresh
       )
     }
   }
@@ -223,6 +314,7 @@ private struct EpisodesTableView: View {
   @Binding var sortOrder: [KeyPathComparator<PodcastEpisode>]
   var artworkLoader: ArtworkLoader
   var onSelectionChanged: (Set<String>) -> Void
+  var onRefresh: () async -> Void
 
   var body: some View {
     Table(sortedEpisodes, selection: $selectedEpisodeIDs, sortOrder: $sortOrder) {
@@ -271,6 +363,9 @@ private struct EpisodesTableView: View {
     }
     .onChange(of: selectedEpisodeIDs) { _, newValue in
       onSelectionChanged(newValue)
+    }
+    .refreshable {
+      await onRefresh()
     }
     .overlay {
       if episodes.isEmpty && !isLoading {
@@ -370,8 +465,12 @@ private struct DestinationControlsView: View {
           }
         }
         Spacer()
-        Button("Choose Folder") { onChooseFolder() }
-          .buttonStyle(.borderedProminent)
+        Button {
+          onChooseFolder()
+        } label: {
+          Label("Choose Folder", systemImage: "folder")
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
@@ -386,8 +485,6 @@ private struct TransferControlsView: View {
   var onTransfer: () -> Void
   var onSelectAll: () -> Void
   var onClearSelection: () -> Void
-  var onRefresh: () -> Void
-  var onShowDestination: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -428,28 +525,9 @@ private struct TransferControlsView: View {
         }
         .buttonStyle(.bordered)
         .disabled(selectionCount == 0)
-
-        Button {
-          onRefresh()
-        } label: {
-          Label("Refresh", systemImage: "arrow.clockwise")
-        }
         .buttonStyle(.bordered)
         .disabled(isLoading)
-
-        Spacer()
-
-        Button {
-          onShowDestination()
-        } label: {
-          Label("Destination", systemImage: "sidebar.right")
-        }
-        .buttonStyle(.bordered)
       }
-
-      Text("Choose a destination folder, select episodes, then transfer.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
   }
 
@@ -495,8 +573,7 @@ private struct StatusSummaryView: View {
             Text("Scanning library…")
           }
         } else {
-          Text("Ready to transfer")
-            .foregroundStyle(.secondary)
+          SelectionHintView()
         }
       case .inProgress(let progress):
         TransferProgressView(progress: progress)
@@ -528,7 +605,7 @@ private struct TransferProgressView: View {
       ProgressView(value: displayedFraction, total: 1)
         .progressViewStyle(.linear)
 
-      Text("Copying \(progress.completed)/\(progress.total)")
+      Text("Copying \(progress.completed + 1)/\(progress.total)")
         .font(.subheadline)
         .foregroundStyle(.secondary)
     }
@@ -590,6 +667,12 @@ private struct DestinationInspectorView: View {
           systemImage: "externaldrive",
           description: Text("Choose a folder to see what's already on the device.")
         )
+      } else if isDestinationReachable == false {
+        ContentUnavailableView(
+          "Destination not mounted",
+          systemImage: "externaldrive.badge.exclamationmark",
+          description: Text("Reconnect the volume and try again.")
+        )
       } else if episodes.isEmpty {
         ContentUnavailableView(
           "Nothing found",
@@ -606,14 +689,24 @@ private struct DestinationInspectorView: View {
               DestinationEpisodeRow(episode: episode, artworkLoader: artworkLoader) {
                 onDelete(episode)
               }
+              .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
             }
           }
-          .listStyle(.inset)
+          .listStyle(.plain)
+          .scrollContentBackground(.hidden)
         }
       }
     }
     .padding(16)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var isDestinationReachable: Bool {
+    guard let destination else { return false }
+    if let isReachable = try? destination.checkResourceIsReachable() {
+      return isReachable
+    }
+    return FileManager.default.fileExists(atPath: destination.path)
   }
 
   private var sortedDestinationEpisodes: [PodcastEpisode] {
@@ -629,6 +722,7 @@ private struct EpisodesListView: View {
   let isLoading: Bool
   var artworkLoader: ArtworkLoader
   var onToggle: (PodcastEpisode) -> Void
+  var onRefresh: () async -> Void
 
   var body: some View {
     List {
@@ -658,6 +752,9 @@ private struct EpisodesListView: View {
         )
       }
     }
+    .refreshable {
+      await onRefresh()
+    }
   }
 
   private var podcastSections: [(podcast: String, episodes: [PodcastEpisode])] {
@@ -671,6 +768,15 @@ private struct EpisodesListView: View {
       }
       .sorted { $0.newestDate > $1.newestDate }
       .map { ($0.podcast, $0.episodes) }
+  }
+}
+
+private struct SelectionHintView: View {
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Select episodes to transfer")
+        .font(.subheadline)
+    }
   }
 }
 
@@ -726,14 +832,8 @@ private struct DestinationEpisodeRow: View {
   var artworkLoader: ArtworkLoader
   var onDelete: () -> Void
 
-  @State private var image: PlatformImage?
-
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      ArtworkThumbnail(image: image)
-        .frame(width: 32, height: 32)
-        .cornerRadius(6)
-
       VStack(alignment: .leading, spacing: 4) {
         Text(episode.title)
           .font(.subheadline)
@@ -769,14 +869,6 @@ private struct DestinationEpisodeRow: View {
       }
       .buttonStyle(.borderless)
       .help("Delete")
-    }
-    .task(id: episode.id) {
-      if image == nil {
-        image = await artworkLoader.thumbnail(
-          for: episode.fileURL,
-          fallbackArtworkURL: episode.artworkURL
-        )
-      }
     }
   }
 
