@@ -117,7 +117,11 @@ public struct PodcastTransferView: View {
           Task { await viewModel.deleteDestinationEpisode(episode) }
         }
       )
-      .frame(minWidth: 320)
+      // The inspector host can clip content near the rounded corners.
+      // Provide extra inset and a wider minimum width for readability.
+      .padding(.top, 6)
+      .padding(.leading, 6)
+      .inspectorColumnWidth(min: 420, ideal: 560, max: 760)
     }
     .task {
       await viewModel.loadEpisodes()
@@ -349,13 +353,18 @@ private struct DestinationControlsView: View {
       HStack {
         VStack(alignment: .leading) {
           if let destination {
-            Text(destination.path)
+            Text(destination.lastPathComponent)
               .font(.subheadline)
+              .fontWeight(.semibold)
+            Text(destination.path)
+              .font(.caption)
               .foregroundStyle(.secondary)
-              .lineLimit(2)
+              .lineLimit(1)
+              .truncationMode(.middle)
               .multilineTextAlignment(.leading)
+              .textSelection(.enabled)
           } else {
-            Text("No device selected")
+            Text("No destination selected")
               .font(.subheadline)
               .foregroundStyle(.secondary)
           }
@@ -570,17 +579,47 @@ private struct DestinationInspectorView: View {
   var onDelete: (PodcastEpisode) -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .center, spacing: 12) {
       DestinationControlsView(destination: destination, onChooseFolder: onChooseFolder)
-      DestinationListView(
-        destination: destination,
-        episodes: episodes,
-        artworkLoader: artworkLoader,
-        onDelete: onDelete
-      )
-      Spacer(minLength: 0)
+
+      Divider()
+
+      if destination == nil {
+        ContentUnavailableView(
+          "No destination",
+          systemImage: "externaldrive",
+          description: Text("Choose a folder to see what's already on the device.")
+        )
+      } else if episodes.isEmpty {
+        ContentUnavailableView(
+          "Nothing found",
+          systemImage: "tray",
+          description: Text("No podcast files were found at this destination.")
+        )
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("On Destination")
+            .font(.headline)
+
+          List {
+            ForEach(sortedDestinationEpisodes) { episode in
+              DestinationEpisodeRow(episode: episode, artworkLoader: artworkLoader) {
+                onDelete(episode)
+              }
+            }
+          }
+          .listStyle(.inset)
+        }
+      }
     }
-    .padding()
+    .padding(16)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var sortedDestinationEpisodes: [PodcastEpisode] {
+    episodes.sorted { lhs, rhs in
+      (lhs.createdAt ?? .distantPast) > (rhs.createdAt ?? .distantPast)
+    }
   }
 }
 
@@ -643,9 +682,6 @@ private struct DestinationListView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("On Destination")
-        .font(.headline)
-
       if let destination {
         if episodes.isEmpty {
           Text("No podcasts found at \(destination.lastPathComponent)")
@@ -670,7 +706,6 @@ private struct DestinationListView: View {
               }
             }
           }
-          .frame(maxHeight: 250)
         }
       } else {
         Text("Select a destination to view existing files.")
@@ -683,6 +718,80 @@ private struct DestinationListView: View {
     episodes.sorted { lhs, rhs in
       (lhs.createdAt ?? .distantPast) > (rhs.createdAt ?? .distantPast)
     }
+  }
+}
+
+private struct DestinationEpisodeRow: View {
+  let episode: PodcastEpisode
+  var artworkLoader: ArtworkLoader
+  var onDelete: () -> Void
+
+  @State private var image: PlatformImage?
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      ArtworkThumbnail(image: image)
+        .frame(width: 32, height: 32)
+        .cornerRadius(6)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(episode.title)
+          .font(.subheadline)
+          .lineLimit(2)
+
+        Text(episode.podcastTitle)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+
+        HStack(spacing: 10) {
+          if let createdAt = episode.createdAt {
+            Label(
+              createdAt.formatted(date: .abbreviated, time: .shortened),
+              systemImage: "calendar"
+            )
+          }
+          if let duration = episode.duration {
+            Label(durationString(duration), systemImage: "clock")
+          }
+          Label(byteCountString(episode.fileSize), systemImage: "externaldrive")
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      }
+
+      Spacer(minLength: 0)
+
+      Button(role: .destructive) {
+        onDelete()
+      } label: {
+        Image(systemName: "trash")
+      }
+      .buttonStyle(.borderless)
+      .help("Delete")
+    }
+    .task(id: episode.id) {
+      if image == nil {
+        image = await artworkLoader.thumbnail(
+          for: episode.fileURL,
+          fallbackArtworkURL: episode.artworkURL
+        )
+      }
+    }
+  }
+
+  private func byteCountString(_ size: Int64) -> String {
+    let formatter = ByteCountFormatter()
+    formatter.allowedUnits = [.useMB, .useGB]
+    formatter.countStyle = .file
+    return formatter.string(fromByteCount: size)
+  }
+
+  private func durationString(_ duration: TimeInterval) -> String {
+    let totalSeconds = Int(duration)
+    let minutes = totalSeconds / 60
+    let seconds = totalSeconds % 60
+    return String(format: "%dm %02ds", minutes, seconds)
   }
 }
 
