@@ -84,7 +84,7 @@ extension PodcastLibraryClient {
 
           let size = resourceValues?.fileSize.map(Int64.init) ?? 0
           let createdAt =
-            dateFromAppleTimestamp(row["downloadDate"]) ?? dateFromAppleTimestamp(row["pubDate"])
+            dateFromAppleTimestamp(row["pubDate"]) ?? dateFromAppleTimestamp(row["downloadDate"])
             ?? resourceValues?.creationDate
             ?? resourceValues?.contentModificationDate
 

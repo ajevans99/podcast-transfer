@@ -18,7 +18,7 @@ targets:
         product: PodcastTransferCore
     settings:
       PRODUCT_NAME: PodcastTransfer
-      PRODUCT_BUNDLE_IDENTIFIER: com.example.podcasttransfer
+      PRODUCT_BUNDLE_IDENTIFIER: us.atlasapps.podcasttransfer
       SWIFT_VERSION: 6.0
       GENERATE_INFOPLIST_FILE: YES
 packages:

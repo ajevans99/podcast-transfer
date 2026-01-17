@@ -14,7 +14,7 @@ struct EpisodeRow: View {
   @State private var image: PlatformImage?
 
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
+    HStack(alignment: .center, spacing: 10) {
       if showSelection {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
           .foregroundStyle(isSelected ? Color.accentColor : .secondary)
@@ -39,7 +39,7 @@ struct EpisodeRow: View {
             .foregroundStyle(.secondary)
           if let createdAt = episode.createdAt {
             Label(
-              createdAt.formatted(date: .abbreviated, time: .shortened),
+              createdAt.formatted(date: .abbreviated, time: .omitted),
               systemImage: "calendar"
             )
             .font(.caption)

@@ -6,6 +6,8 @@ import SwiftUI
 
 @main
 struct PodcastTransferApp: App {
+  @StateObject private var sceneModel = PodcastTransferSceneModel()
+
   init() {
     prepareDependencies {
       $0.podcastLibrary = .live()
@@ -15,7 +17,12 @@ struct PodcastTransferApp: App {
 
   var body: some Scene {
     WindowGroup {
-      PodcastTransferView()
+      PodcastTransferView(viewModel: sceneModel.viewModel)
+        .environmentObject(sceneModel)
+    }
+    .defaultSize(width: 1100, height: 760)
+    .commands {
+      PodcastTransferCommands()
     }
   }
 }

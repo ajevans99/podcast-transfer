@@ -21,7 +21,7 @@ struct DestinationEpisodeRow: View {
         HStack(spacing: 10) {
           if let createdAt = episode.createdAt {
             Label(
-              createdAt.formatted(date: .abbreviated, time: .shortened),
+              createdAt.formatted(date: .abbreviated, time: .omitted),
               systemImage: "calendar"
             )
           }

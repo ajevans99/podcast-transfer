@@ -8,17 +8,20 @@ import SwiftUI
 #endif
 
 public struct PodcastTransferView: View {
+  @Environment(\.openURL) private var openURL
   @State private var viewModel: PodcastTransferViewModel
   @State private var isImporterPresented = false
   @State private var importerError: String?
   @StateObject private var artworkLoader = ArtworkLoader()
-  @State private var sourcePresentation: SourcePresentation = .grouped
+  @SceneStorage("podcastTransfer.sourcePresentation")
+  private var sourcePresentationRaw = SourcePresentation.grouped.rawValue
   @State private var sortOrder: [KeyPathComparator<PodcastEpisode>] = [
     .init(\PodcastEpisode.createdAtSortable, order: .reverse)
   ]
   @State private var tableSelectedEpisodeIDs: Set<String> = []
   @State private var lastTableSelectedEpisodeIDs: Set<String> = []
-  @State private var isDestinationInspectorPresented = true
+  @SceneStorage("podcastTransfer.isDestinationInspectorPresented")
+  private var isDestinationInspectorPresented = true
   @State private var showTransferSuccess = false
   @State private var successPulse = false
 
@@ -107,51 +110,38 @@ public struct PodcastTransferView: View {
       .toolbar {
         ToolbarItemGroup(placement: .navigation) {
           Menu {
-            Picker("View", selection: $sourcePresentation) {
-              Label("Grouped", systemImage: "list.bullet.rectangle")
-                .tag(SourcePresentation.grouped)
-              Label("Table", systemImage: "tablecells")
-                .tag(SourcePresentation.table)
-            }
-            .pickerStyle(.inline)
+            ViewModePickerContent(sourcePresentation: sourcePresentationBinding)
           } label: {
             Label("View", systemImage: "line.3.horizontal.decrease.circle")
           }
 
           Menu {
-            Button("Select All") {
-              viewModel.selectAll()
-            }
-            .keyboardShortcut("a", modifiers: [.command])
-
-            Button("Clear Selection") {
-              viewModel.clearSelection()
-            }
-            .keyboardShortcut(.escape, modifiers: [])
+            SelectionMenuContent(
+              selectAll: { viewModel.selectAll() },
+              clearSelection: { viewModel.clearSelection() }
+            )
           } label: {
             Label("Selection", systemImage: "checkmark.circle")
           }
+        }
 
-          Button {
+        ToolbarItem(placement: .primaryAction) {
+          RefreshButton {
             Task {
               await viewModel.loadEpisodes()
               await viewModel.loadDestinationEpisodes()
             }
-          } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
           }
-          .keyboardShortcut("r", modifiers: [.command])
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+          OpenPodcastsButton {
+            Task { await PodcastsAppLauncher.open(openURL: openURL) }
+          }
         }
 
         ToolbarItem(placement: .automatic) {
-          Button {
-            isDestinationInspectorPresented.toggle()
-          } label: {
-            Label(
-              isDestinationInspectorPresented ? "Hide Destination" : "Show Destination",
-              systemImage: "sidebar.right"
-            )
-          }
+          DestinationInspectorButton(isPresented: $isDestinationInspectorPresented)
         }
       }
     }
@@ -257,5 +247,17 @@ public struct PodcastTransferView: View {
     let count = viewModel.selectedEpisodeIDs.count
     guard count > 0 else { return "Transfer" }
     return "Transfer \(count)"
+  }
+
+  private var sourcePresentation: SourcePresentation {
+    get { SourcePresentation(rawValue: sourcePresentationRaw) ?? .grouped }
+    set { sourcePresentationRaw = newValue.rawValue }
+  }
+
+  private var sourcePresentationBinding: Binding<SourcePresentation> {
+    Binding(
+      get: { sourcePresentation },
+      set: { sourcePresentationRaw = $0.rawValue }
+    )
   }
 }
