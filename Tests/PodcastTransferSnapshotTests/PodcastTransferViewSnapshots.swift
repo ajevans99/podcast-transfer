@@ -1,11 +1,12 @@
 import AppKit
 import Dependencies
-import PodcastTransferFeature
 import PodcastTransferCore
-@testable import PodcastTransferUI
+import PodcastTransferFeature
 import SnapshotTesting
 import SwiftUI
 import Testing
+
+@testable import PodcastTransferUI
 
 /// SNAPSHOT_TESTING_RECORD = 1`
 @Suite
@@ -48,7 +49,11 @@ struct PodcastTransferViewSnapshots {
       onDelete: { _ in }
     )
 
-    assertSnapshotView(view, name: "destination-mounted-empty", size: .init(width: 420, height: 420))
+    assertSnapshotView(
+      view,
+      name: "destination-mounted-empty",
+      size: .init(width: 420, height: 420)
+    )
   }
 
   @MainActor
@@ -62,7 +67,11 @@ struct PodcastTransferViewSnapshots {
       onDelete: { _ in }
     )
 
-    assertSnapshotView(view, name: "destination-with-episodes", size: .init(width: 520, height: 520))
+    assertSnapshotView(
+      view,
+      name: "destination-with-episodes",
+      size: .init(width: 520, height: 520)
+    )
   }
 
   @MainActor
