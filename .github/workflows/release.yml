@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-sign-release:
+    name: macOS Release Build
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode.app"
+          xcodebuild -version
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MACOS_CERT_P12}" || -z "${MACOS_CERT_PASSWORD}" || -z "${MACOS_KEYCHAIN_PASSWORD}" ]]; then
+            echo "Missing signing secrets. Configure MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_KEYCHAIN_PASSWORD." >&2
+            exit 1
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build (Release)
+        env:
+          CODE_SIGN_IDENTITY: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
+          DEVELOPMENT_TEAM: ${{ secrets.MACOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CODE_SIGN_IDENTITY}" || -z "${DEVELOPMENT_TEAM}" ]]; then
+            echo "Missing signing identity/team. Configure MACOS_CODE_SIGN_IDENTITY and MACOS_TEAM_ID." >&2
+            exit 1
+          fi
+          xcrun xcodebuild \
+            -project App/PodcastTransfer.xcodeproj \
+            -scheme PodcastTransfer \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            build
+
+      - name: Package app
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Release/PodcastTransfer.app" -print -quit)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Release app not found." >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "PodcastTransfer.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PodcastTransfer.zip
+          draft: false
+          prerelease: false

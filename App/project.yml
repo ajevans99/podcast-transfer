@@ -9,6 +9,8 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: ../Sources/PodcastTransferApp
+      - path: Resources
+        buildPhase: resources
     dependencies:
       - package: PodcastTransfer
         product: PodcastTransferUI
@@ -21,6 +23,10 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: us.atlasapps.podcasttransfer
       SWIFT_VERSION: 6.0
       GENERATE_INFOPLIST_FILE: YES
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      INFOPLIST_KEY_CFBundleIconName: AppIcon
+      INFOPLIST_KEY_CFBundleDisplayName: "Podcast Transfer"
+      INFOPLIST_KEY_CFBundleName: "Podcast Transfer"
 packages:
   PodcastTransfer:
     path: ..
