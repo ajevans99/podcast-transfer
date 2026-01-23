@@ -19,7 +19,7 @@ targets:
       - package: PodcastTransfer
         product: PodcastTransferCore
     settings:
-      PRODUCT_NAME: PodcastTransfer
+      PRODUCT_NAME: "Podcast Transfer"
       PRODUCT_BUNDLE_IDENTIFIER: us.atlasapps.podcasttransfer
       SWIFT_VERSION: 6.0
       GENERATE_INFOPLIST_FILE: YES
@@ -27,6 +27,9 @@ targets:
       INFOPLIST_KEY_CFBundleIconName: AppIcon
       INFOPLIST_KEY_CFBundleDisplayName: "Podcast Transfer"
       INFOPLIST_KEY_CFBundleName: "Podcast Transfer"
+      INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: 3Z68NFJBHS
 packages:
   PodcastTransfer:
     path: ..

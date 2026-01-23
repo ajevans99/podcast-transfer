@@ -24,6 +24,8 @@ public struct PodcastTransferView: View {
   private var isDestinationInspectorPresented = true
   @State private var showTransferSuccess = false
   @State private var successPulse = false
+  @State private var ejectError: String?
+  @State private var isEjecting = false
 
   public init(viewModel: PodcastTransferViewModel = PodcastTransferViewModel()) {
     _viewModel = State(initialValue: viewModel)
@@ -140,6 +142,18 @@ public struct PodcastTransferView: View {
           }
         }
 
+        if let ejectableVolumeURL {
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              Task { await ejectDestinationVolume(at: ejectableVolumeURL) }
+            } label: {
+              Label("Eject", systemImage: "eject")
+            }
+            .disabled(isEjecting || isTransferring(from: viewModel.state))
+            .help("Eject destination")
+          }
+        }
+
         ToolbarItem(placement: .automatic) {
           DestinationInspectorButton(isPresented: $isDestinationInspectorPresented)
         }
@@ -223,6 +237,23 @@ public struct PodcastTransferView: View {
         Text(importerError)
       }
     }
+    .alert(
+      "Unable to eject destination",
+      isPresented: Binding(
+        get: { ejectError != nil },
+        set: { presenting in
+          if presenting == false {
+            ejectError = nil
+          }
+        }
+      )
+    ) {
+      Button("OK", role: .cancel) { ejectError = nil }
+    } message: {
+      if let ejectError {
+        Text(ejectError)
+      }
+    }
   }
 
   private func isTransferring(from state: TransferState) -> Bool {
@@ -249,6 +280,23 @@ public struct PodcastTransferView: View {
     return "Transfer \(count)"
   }
 
+  private var ejectableVolumeURL: URL? {
+    guard let destination = viewModel.persistedDestination else { return nil }
+    let keys: Set<URLResourceKey> = [
+      .volumeURLKey,
+      .volumeIsEjectableKey,
+      .volumeIsRemovableKey,
+      .volumeIsInternalKey,
+    ]
+    let values = try? destination.resourceValues(forKeys: keys)
+    guard let volumeURL = values?.volumeURL else { return nil }
+    let isEjectable = values?.volumeIsEjectable == true
+    let isRemovable = values?.volumeIsRemovable == true
+    let isExternal = values?.volumeIsInternal == false
+    guard isEjectable || isRemovable || isExternal else { return nil }
+    return volumeURL
+  }
+
   private var sourcePresentation: SourcePresentation {
     get { SourcePresentation(rawValue: sourcePresentationRaw) ?? .grouped }
     set { sourcePresentationRaw = newValue.rawValue }
@@ -259,5 +307,33 @@ public struct PodcastTransferView: View {
       get: { sourcePresentation },
       set: { sourcePresentationRaw = $0.rawValue }
     )
+  }
+
+  @MainActor
+  private func ejectDestinationVolume(at volumeURL: URL) async {
+    isEjecting = true
+    defer { isEjecting = false }
+
+    #if os(macOS)
+      let error = await unmountAndEject(volumeURL)
+      if let error {
+        ejectError = error.localizedDescription
+      }
+    #else
+      ejectError = "Eject is only available on macOS."
+    #endif
+  }
+
+  @MainActor
+  private func unmountAndEject(_ volumeURL: URL) async -> Error? {
+    #if os(macOS)
+      return await withCheckedContinuation { continuation in
+        NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL) { _, error in
+          continuation.resume(returning: error)
+        }
+      }
+    #else
+      return nil
+    #endif
   }
 }
