@@ -21,7 +21,6 @@ let package = Package(
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.10.0"),
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.7"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.7.4"),
-    .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.4.3"),
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.6.0"),
   ],
   targets: [
@@ -30,7 +29,6 @@ let package = Package(
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "Sharing", package: "swift-sharing"),
-        .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "GRDB", package: "GRDB.swift"),
       ]
     ),

@@ -2,7 +2,6 @@ import Dependencies
 import Foundation
 import GRDB
 import OSLog
-import SQLiteData
 
 public struct PodcastMetadataClient: Sendable {
   /// Returns a map keyed by filename (lastPathComponent) to enriched episode metadata.
@@ -26,7 +25,6 @@ extension PodcastMetadataClient {
 
       let logger = Logger(subsystem: "PodcastTransfer", category: "Metadata")
 
-      // SQLiteData re-exports GRDB's DatabaseQueue.
       let db = try DatabaseQueue(path: dbURL.path)
       return try db.read { database in
         func materializeArtworkURL(_ raw: String?) -> URL? {

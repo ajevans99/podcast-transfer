@@ -116,6 +116,7 @@ public struct PodcastTransferView: View {
           } label: {
             Label("View", systemImage: "line.3.horizontal.decrease.circle")
           }
+          .help("Change list view")
 
           Menu {
             SelectionMenuContent(
@@ -125,6 +126,7 @@ public struct PodcastTransferView: View {
           } label: {
             Label("Selection", systemImage: "checkmark.circle")
           }
+          .help("Select or clear episodes")
         }
 
         ToolbarItem(placement: .primaryAction) {
@@ -134,12 +136,14 @@ public struct PodcastTransferView: View {
               await viewModel.loadDestinationEpisodes()
             }
           }
+          .help("Refresh episodes")
         }
 
         ToolbarItem(placement: .primaryAction) {
           OpenPodcastsButton {
             Task { await PodcastsAppLauncher.open(openURL: openURL) }
           }
+          .help("Open Apple Podcasts")
         }
 
         if let ejectableVolumeURL {
@@ -156,6 +160,11 @@ public struct PodcastTransferView: View {
 
         ToolbarItem(placement: .automatic) {
           DestinationInspectorButton(isPresented: $isDestinationInspectorPresented)
+            .help(
+              isDestinationInspectorPresented
+                ? "Hide destination inspector"
+                : "Show destination inspector"
+            )
         }
       }
     }
