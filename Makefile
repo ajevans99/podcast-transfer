@@ -9,7 +9,7 @@ lint:
 	@$(SWIFT_FORMAT) lint --strict -r Package.swift Sources Tests
 
 build:
-	swift build
+	xcodebuild -project App/PodcastTransfer.xcodeproj -scheme PodcastTransfer -configuration Debug -destination 'platform=macOS' build
 
 test:
 	swift test -v

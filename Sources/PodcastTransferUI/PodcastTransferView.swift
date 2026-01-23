@@ -254,6 +254,8 @@ public struct PodcastTransferView: View {
         Text(ejectError)
       }
     }
+    .focusedValue(\.sourcePresentation, sourcePresentationBinding)
+    .focusedValue(\.isDestinationInspectorPresented, $isDestinationInspectorPresented)
   }
 
   private func isTransferring(from state: TransferState) -> Bool {
@@ -289,7 +291,12 @@ public struct PodcastTransferView: View {
       .volumeIsInternalKey,
     ]
     let values = try? destination.resourceValues(forKeys: keys)
-    guard let volumeURL = values?.volumeURL else { return nil }
+
+    let nsDestination = destination as NSURL
+    var volumeURLObject: AnyObject?
+    try? nsDestination.getResourceValue(&volumeURLObject, forKey: URLResourceKey.volumeURLKey)
+    guard let volumeURL = volumeURLObject as? URL else { return nil }
+
     let isEjectable = values?.volumeIsEjectable == true
     let isRemovable = values?.volumeIsRemovable == true
     let isExternal = values?.volumeIsInternal == false
@@ -327,10 +334,11 @@ public struct PodcastTransferView: View {
   @MainActor
   private func unmountAndEject(_ volumeURL: URL) async -> Error? {
     #if os(macOS)
-      return await withCheckedContinuation { continuation in
-        NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL) { _, error in
-          continuation.resume(returning: error)
-        }
+      do {
+        try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
+        return nil
+      } catch {
+        return error
       }
     #else
       return nil

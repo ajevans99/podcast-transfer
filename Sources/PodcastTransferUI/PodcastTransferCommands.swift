@@ -4,10 +4,10 @@ import SwiftUI
 public struct PodcastTransferCommands: Commands {
   @EnvironmentObject private var sceneModel: PodcastTransferSceneModel
   @Environment(\.openURL) private var openURL
-  @SceneStorage("podcastTransfer.sourcePresentation")
-  private var sourcePresentationRaw = SourcePresentation.grouped.rawValue
-  @SceneStorage("podcastTransfer.isDestinationInspectorPresented")
-  private var isDestinationInspectorPresented = true
+  @FocusedValue(\.sourcePresentation)
+  private var sourcePresentationBinding: Binding<SourcePresentation>?
+  @FocusedValue(\.isDestinationInspectorPresented)
+  private var isDestinationInspectorPresentedBinding: Binding<Bool>?
 
   public init() {}
 
@@ -41,30 +41,30 @@ public struct PodcastTransferCommands: Commands {
     }
 
     CommandGroup(after: .toolbar) {
-      ViewModePickerContent(
-        sourcePresentation: sourcePresentationBinding,
-        isEnabled: true
-      )
+      if let sourcePresentationBinding {
+        ViewModePickerContent(
+          sourcePresentation: sourcePresentationBinding,
+          isEnabled: true
+        )
+      } else {
+        ViewModePickerContent(
+          sourcePresentation: .constant(.grouped),
+          isEnabled: false
+        )
+      }
 
-      DestinationInspectorButton(
-        isPresented: $isDestinationInspectorPresented,
-        isEnabled: true
-      )
+      if let isDestinationInspectorPresentedBinding {
+        DestinationInspectorButton(
+          isPresented: isDestinationInspectorPresentedBinding,
+          isEnabled: true
+        )
+      } else {
+        DestinationInspectorButton(
+          isPresented: .constant(true),
+          isEnabled: false
+        )
+      }
     }
-  }
-}
-
-extension PodcastTransferCommands {
-  private var sourcePresentation: SourcePresentation {
-    get { SourcePresentation(rawValue: sourcePresentationRaw) ?? .grouped }
-    set { sourcePresentationRaw = newValue.rawValue }
-  }
-
-  private var sourcePresentationBinding: Binding<SourcePresentation> {
-    Binding(
-      get: { sourcePresentation },
-      set: { sourcePresentationRaw = $0.rawValue }
-    )
   }
 }
 
@@ -128,7 +128,12 @@ struct OpenPodcastsButton: View {
     Button {
       action()
     } label: {
-      Label("Open Podcasts app", systemImage: "waveform")
+      Label {
+        Text("Open Podcasts app")
+      } icon: {
+        Image("podcast_icon")
+          .renderingMode(.template)
+      }
     }
     .disabled(!isEnabled)
   }
