@@ -21,7 +21,8 @@ Podcast Transfer is a macOS app that finds episodes you’ve already downloaded 
 ## Privacy
 
 - Podcast Transfer reads local files and local metadata to identify downloaded episodes.
-- No data leaves your Mac.
+- Podcast metadata and episode content are not uploaded.
+- Anonymous usage signals (for example, button usage and transfer outcomes) may be sent via TelemetryDeck.
 
 ## Requirements
 

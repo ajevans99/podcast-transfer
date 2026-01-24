@@ -46,17 +46,16 @@ base64 -i path/to/AuthKey_XXXXXXXXXX.p8 | pbcopy
 
 ## Creating a release
 
-1. Push a tag matching `v*`:
+This repo is set up so you can write your release notes/changelog in GitHub, and the CI workflow will upload the built artifacts to that release.
 
-```
-git tag v1.0.0
-git push origin v1.0.0
-```
+1. Create a GitHub Release first (draft or published) with your changelog.
 
-2. The workflow will build, sign, notarize, staple, and attach:
+2. Ensure the release tag exists (e.g. `v1.0.0`). When a matching tag is pushed, the workflow will build, sign, notarize, staple, and upload:
 
 - `PodcastTransfer.dmg` (drag-and-drop installer)
 - `PodcastTransfer.zip` (a zipped `.app`, useful for notarization/debugging)
+
+If the workflow can’t find an existing GitHub Release for the tag, it will fail with instructions.
 
 The DMG uses `docs/marketing/dmg.png` as its background image.
 
@@ -70,7 +69,7 @@ Before pushing a real tag, run the workflow manually:
 2. In GitHub Actions, run the **Release** workflow via **Run workflow**.
 3. Download the produced artifacts (`PodcastTransfer.dmg` and `PodcastTransfer.zip`) from the workflow run.
 
-Manual runs do not create a GitHub Release; only tag pushes do.
+Manual runs do not upload to a GitHub Release; they upload artifacts to the workflow run.
 
 ## Troubleshooting
 

@@ -293,15 +293,37 @@ jobs:
             spctl -a -vv "$APP_PATH" || true
           fi
 
-      - name: Create GitHub Release
+      - name: Verify GitHub Release exists (tag pushes)
         if: ${{ github.event_name == 'push' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            PodcastTransfer.dmg
-            PodcastTransfer.zip
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          echo "Checking for existing GitHub Release for tag: ${TAG_NAME}"
+          if ! gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release for tag '${TAG_NAME}' not found." >&2
+            echo "Create the release (with notes/changelog) first, then re-run this workflow." >&2
+            exit 1
+          fi
+
+      - name: Upload release assets (tag pushes)
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          if [[ ! -f "PodcastTransfer.dmg" || ! -f "PodcastTransfer.zip" ]]; then
+            echo "Release artifacts missing (expected PodcastTransfer.dmg and PodcastTransfer.zip)." >&2
+            exit 1
+          fi
+
+          gh release upload "$TAG_NAME" \
+            "PodcastTransfer.dmg" \
+            "PodcastTransfer.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
 
       - name: Upload artifacts (manual runs)
         if: ${{ github.event_name == 'workflow_dispatch' }}
