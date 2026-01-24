@@ -76,4 +76,4 @@ jobs:
 
       - name: Build on macOS
         run: |
-          set -o pipefail && make build | xcbeautify --renderer github-actions
+          set -o pipefail && make build-ci | xcbeautify --renderer github-actions

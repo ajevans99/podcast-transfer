@@ -21,7 +21,7 @@ APP_VERSION ?= $(shell \
 	if [ -n "$(GIT_TAG)" ]; then echo "$(GIT_TAG)" | sed -E 's/^v//'; else echo "0.1.0"; fi \
 )
 
-.PHONY: format lint test build build-universal resolve clean xcodegen
+.PHONY: format lint test build build-ci build-universal build-universal-ci resolve clean xcodegen
 
 xcodegen:
 	cd App && $(XCODEGEN) generate
@@ -45,6 +45,22 @@ build:
 		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
 		build
 
+build-ci:
+	xcodebuild \
+		-project App/PodcastTransfer.xcodeproj \
+		-scheme PodcastTransfer \
+		-configuration Debug \
+		-destination 'platform=macOS' \
+		CODE_SIGNING_ALLOWED=NO \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="" \
+		MARKETING_VERSION="$(APP_VERSION)" \
+		CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)" \
+		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
+		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
+		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
+		build
+
 build-universal:
 	xcodebuild \
 		-project App/PodcastTransfer.xcodeproj \
@@ -59,6 +75,24 @@ build-universal:
 		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
 		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
 		$(XCODEBUILD_SIGNING_ARGS) \
+		build
+
+build-universal-ci:
+	xcodebuild \
+		-project App/PodcastTransfer.xcodeproj \
+		-scheme PodcastTransfer \
+		-configuration Release \
+		-destination 'platform=macOS' \
+		ARCHS="arm64 x86_64" \
+		ONLY_ACTIVE_ARCH=NO \
+		CODE_SIGNING_ALLOWED=NO \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="" \
+		MARKETING_VERSION="$(APP_VERSION)" \
+		CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)" \
+		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
+		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
+		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
 		build
 
 test:

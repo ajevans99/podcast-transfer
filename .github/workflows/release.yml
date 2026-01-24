@@ -61,20 +61,16 @@ jobs:
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          # Allow codesign (and other Apple tools) to access the key non-interactively.
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Build (Release)
-        env:
-          CODE_SIGN_IDENTITY: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
-          DEVELOPMENT_TEAM: ${{ secrets.MACOS_TEAM_ID }}
         run: |
           set -euo pipefail
-          if [[ -z "${CODE_SIGN_IDENTITY}" || -z "${DEVELOPMENT_TEAM}" ]]; then
-            echo "Missing signing identity/team. Configure MACOS_CODE_SIGN_IDENTITY and MACOS_TEAM_ID." >&2
-            exit 1
-          fi
-          make build-universal
+          # Build unsigned to avoid Xcode/SPM signing conflicts. We'll sign explicitly later.
+          make build-universal-ci
 
       - name: Debug signing failure
         if: failure()
@@ -107,6 +103,24 @@ jobs:
             exit 1
           fi
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Codesign app (Developer ID)
+        env:
+          CODE_SIGN_IDENTITY: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APP_PATH:-}" ]]; then
+            echo "APP_PATH is not set." >&2
+            exit 1
+          fi
+          if [[ -z "${CODE_SIGN_IDENTITY}" ]]; then
+            echo "Missing signing identity. Configure MACOS_CODE_SIGN_IDENTITY." >&2
+            exit 1
+          fi
+
+          # Sign the app bundle for notarization (hardened runtime + timestamp).
+          codesign --force --deep --options runtime --timestamp --sign "$CODE_SIGN_IDENTITY" "$APP_PATH"
+          codesign --verify --deep --strict --verbose=4 "$APP_PATH"
 
       - name: Package app (for notarization)
         run: |
