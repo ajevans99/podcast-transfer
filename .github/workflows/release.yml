@@ -197,6 +197,19 @@ jobs:
           APP_BASENAME=$(basename "$APP_PATH")
           ditto "$APP_PATH" "$STAGE_DIR/$APP_BASENAME"
 
+          # Use a Finder alias for /Applications so the icon renders correctly in the DMG.
+          # (create-dmg's --app-drop-link uses a symlink, which can appear as a generic/dashed folder.)
+          rm -rf "$STAGE_DIR/Applications"
+          osascript - "$STAGE_DIR" <<'APPLESCRIPT'
+          on run argv
+            set stageDir to item 1 of argv
+            tell application "Finder"
+              set theAlias to make alias file to POSIX file "/Applications" at POSIX file stageDir
+              set name of theAlias to "Applications"
+            end tell
+          end run
+          APPLESCRIPT
+
           # Use the dedicated repo asset for the DMG background.
           BACKGROUND_PATH="docs/marketing/dmg.png"
           if [[ ! -f "$BACKGROUND_PATH" ]]; then
@@ -221,7 +234,7 @@ jobs:
             --window-size 660 440 \
             --icon-size 128 \
             --icon "$APP_BASENAME" 180 230 \
-            --app-drop-link 480 230 \
+            --icon "Applications" 480 230 \
             "PodcastTransfer.dmg" \
             "$STAGE_DIR"
 
