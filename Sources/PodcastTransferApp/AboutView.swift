@@ -1,89 +1,11 @@
+import Dependencies
 import Foundation
+import PodcastTransferCore
 import SwiftUI
 
 struct AboutView: View {
-  private struct Acknowledgement: Identifiable {
-    let name: String
-    let url: URL?
-
-    var id: String { name }
-  }
-
-  private let acknowledgementItems: [Acknowledgement] = [
-    Acknowledgement(
-      name: "swift-dependencies",
-      url: URL(string: "https://github.com/pointfreeco/swift-dependencies")
-    ),
-    Acknowledgement(
-      name: "swift-sharing",
-      url: URL(string: "https://github.com/pointfreeco/swift-sharing")
-    ),
-    Acknowledgement(
-      name: "swift-snapshot-testing",
-      url: URL(string: "https://github.com/pointfreeco/swift-snapshot-testing")
-    ),
-    Acknowledgement(name: "GRDB.swift", url: URL(string: "https://github.com/groue/GRDB.swift")),
-  ]
-
-  private struct AppInfo {
-    var bundleDisplayName: String {
-      Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-        ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-        ?? "Podcast Transfer"
-    }
-
-    var version: String {
-      Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        ?? "0.0.0"
-    }
-
-    var buildNumber: String {
-      Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        ?? "0"
-    }
-
-    var tagline: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferTagline") as? String
-        ?? "Transfer your Apple Podcasts downloads to any folder."
-    }
-
-    var author: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferAuthor") as? String
-        ?? ""
-    }
-
-    var homepageURL: URL? {
-      guard
-        let value = Bundle.main.object(forInfoDictionaryKey: "PodcastTransferHomepageURL")
-          as? String
-      else {
-        return nil
-      }
-      return URL(string: value)
-    }
-
-    var dataAccessNote: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferDataAccessNote") as? String
-        ?? ""
-    }
-
-    var gitSHA: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferGitSHA") as? String
-        ?? ""
-    }
-
-    var gitTag: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferGitTag") as? String
-        ?? ""
-    }
-
-    var buildIdentifier: String {
-      Bundle.main.object(forInfoDictionaryKey: "PodcastTransferBuildIdentifier") as? String
-        ?? ""
-    }
-  }
-
-  private let info = AppInfo()
+  @Dependency(\.aboutInfoClient) private var aboutInfoClient
+  private var info: AboutInfo { aboutInfoClient.load() }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -184,7 +106,7 @@ struct AboutView: View {
       Text("Acknowledgements")
         .font(.headline)
       VStack(alignment: .leading, spacing: 4) {
-        ForEach(acknowledgementItems) { acknowledgement in
+        ForEach(info.acknowledgements) { acknowledgement in
           HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\u{2022}")
               .foregroundStyle(.secondary)

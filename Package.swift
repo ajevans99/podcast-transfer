@@ -72,6 +72,7 @@ let package = Package(
     .testTarget(
       name: "PodcastTransferSnapshotTests",
       dependencies: [
+        "PodcastTransferApp",
         "PodcastTransferUI",
         "PodcastTransferFeature",
         "PodcastTransferCore",

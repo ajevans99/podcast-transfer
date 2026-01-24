@@ -5,19 +5,21 @@
       "type": "swift",
       "request": "launch",
       "args": [],
-      "cwd": "${workspaceFolder:spm-template}",
+      "cwd": "${workspaceFolder:podcast-transfer}",
       "name": "Release Playground",
-      "program": "${workspaceFolder:spm-template}/.build/release/Playground",
-      "preLaunchTask": "swift: Build Release Playground"
+      "preLaunchTask": "swift: Build Release Playground",
+      "target": "Playground",
+      "configuration": "release"
     },
     {
       "type": "swift",
       "request": "launch",
       "args": [],
-      "cwd": "${workspaceFolder:spm-template}",
+      "cwd": "${workspaceFolder:podcast-transfer}",
       "name": "Debug Playground",
-      "program": "${workspaceFolder:spm-template}/.build/debug/Playground",
-      "preLaunchTask": "swift: Build Debug Playground"
+      "preLaunchTask": "swift: Build Debug Playground",
+      "target": "Playground",
+      "configuration": "debug"
     },
     {
       "type": "swift",

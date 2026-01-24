@@ -38,7 +38,6 @@ Apple Podcasts downloads live under Apple’s Group Container. Podcast Transfer 
 
 Releases are published on GitHub:
 
-- https://github.com/ajevans/podcast-transfer/releases
 - https://github.com/ajevans99/podcast-transfer/releases
 
 ## Building from source (for contributors)
