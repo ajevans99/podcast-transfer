@@ -1,4 +1,5 @@
 SWIFT_FORMAT ?= swift-format
+XCODEGEN ?= xcodegen
 
 GIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 GIT_TAG ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -10,7 +11,10 @@ APP_VERSION ?= $(shell \
 	if [ -n "$(GIT_TAG)" ]; then echo "$(GIT_TAG)" | sed -E 's/^v//'; else echo "0.1.0"; fi \
 )
 
-.PHONY: format lint test build resolve clean
+.PHONY: format lint test build resolve clean xcodegen
+
+xcodegen:
+	cd App && $(XCODEGEN) generate
 
 format:
 	@$(SWIFT_FORMAT) format -i -r Package.swift Sources Tests

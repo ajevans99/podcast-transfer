@@ -20,6 +20,16 @@ jobs:
           sudo xcode-select -s "/Applications/Xcode.app"
           xcodebuild -version
 
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        run: make xcodegen
+
       - name: Import signing certificate
         env:
           MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
