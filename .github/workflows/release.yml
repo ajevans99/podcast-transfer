@@ -204,6 +204,15 @@ jobs:
             exit 1
           fi
 
+          # create-dmg does not do Retina scaling for the background image.
+          # Ensure the background image matches the window size in pixels.
+          BG_WIDTH=$(sips -g pixelWidth "$BACKGROUND_PATH" | awk -F': ' '/pixelWidth/ { print $2 }')
+          BG_HEIGHT=$(sips -g pixelHeight "$BACKGROUND_PATH" | awk -F': ' '/pixelHeight/ { print $2 }')
+          if [[ "$BG_WIDTH" != "660" || "$BG_HEIGHT" != "440" ]]; then
+            echo "DMG background must be 660x440 to match --window-size; got ${BG_WIDTH}x${BG_HEIGHT}." >&2
+            exit 1
+          fi
+
           rm -f "PodcastTransfer.dmg"
           create-dmg \
             --volname "Podcast Transfer" \

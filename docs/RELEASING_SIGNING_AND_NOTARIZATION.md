@@ -60,6 +60,8 @@ git push origin v1.0.0
 
 The DMG uses `docs/marketing/dmg.png` as its background image.
 
+Note: `create-dmg` does not do Retina scaling for the background image. The background should match the configured `--window-size` in pixels (currently 660×440). If you want a higher-resolution source image for editing, keep `docs/marketing/dmg@2x.png` and downscale it to `dmg.png` for the actual DMG.
+
 ## Testing the release pipeline (recommended)
 
 Before pushing a real tag, run the workflow manually:

@@ -265,6 +265,7 @@ struct PodcastTransferViewSnapshots {
       tagline: "Transfer your Apple Podcasts downloads to any folder.",
       author: "",
       homepageURL: URL(string: "https://example.com"),
+      supportLinks: [],
       dataAccessNote: "",
       gitSHA: "abcdef1",
       gitTag: "v1.2.3",

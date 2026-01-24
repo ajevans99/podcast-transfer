@@ -2,6 +2,18 @@ import Dependencies
 import Foundation
 
 public struct AboutInfo: Sendable, Equatable {
+  public struct SupportLink: Identifiable, Sendable, Equatable {
+    public var title: String
+    public var url: URL
+
+    public var id: String { url.absoluteString }
+
+    public init(title: String, url: URL) {
+      self.title = title
+      self.url = url
+    }
+  }
+
   public struct Acknowledgement: Identifiable, Sendable, Equatable {
     public var name: String
     public var url: URL?
@@ -20,6 +32,7 @@ public struct AboutInfo: Sendable, Equatable {
   public var tagline: String
   public var author: String
   public var homepageURL: URL?
+  public var supportLinks: [SupportLink]
   public var dataAccessNote: String
   public var gitSHA: String
   public var gitTag: String
@@ -33,6 +46,7 @@ public struct AboutInfo: Sendable, Equatable {
     tagline: String,
     author: String,
     homepageURL: URL?,
+    supportLinks: [SupportLink],
     dataAccessNote: String,
     gitSHA: String,
     gitTag: String,
@@ -45,6 +59,7 @@ public struct AboutInfo: Sendable, Equatable {
     self.tagline = tagline
     self.author = author
     self.homepageURL = homepageURL
+    self.supportLinks = supportLinks
     self.dataAccessNote = dataAccessNote
     self.gitSHA = gitSHA
     self.gitTag = gitTag
@@ -59,6 +74,12 @@ public struct AboutInfo: Sendable, Equatable {
     tagline: "Transfer your Apple Podcasts downloads to any folder.",
     author: "",
     homepageURL: URL(string: "https://github.com/ajevans99/podcast-transfer"),
+    supportLinks: [
+      .init(
+        title: "Support Development",
+        url: URL(string: "https://github.com/sponsors/ajevans99")!
+      )
+    ],
     dataAccessNote: "",
     gitSHA: "",
     gitTag: "",
@@ -113,6 +134,19 @@ extension AboutInfoClient: DependencyKey {
 
       let homepageURL = URL(string: string("PodcastTransferHomepageURL"))
 
+      let supportLinks: [AboutInfo.SupportLink] = {
+        let title =
+          string("PodcastTransferSupportTitle").isEmpty
+          ? "Support Development"
+          : string("PodcastTransferSupportTitle")
+
+        guard let url = URL(string: string("PodcastTransferSupportURL")) else {
+          return []
+        }
+
+        return [.init(title: title, url: url)]
+      }()
+
       return AboutInfo(
         bundleDisplayName: bundleDisplayName,
         version: version,
@@ -120,6 +154,7 @@ extension AboutInfoClient: DependencyKey {
         tagline: tagline,
         author: string("PodcastTransferAuthor"),
         homepageURL: homepageURL,
+        supportLinks: supportLinks,
         dataAccessNote: string("PodcastTransferDataAccessNote"),
         gitSHA: string("PodcastTransferGitSHA"),
         gitTag: string("PodcastTransferGitTag"),

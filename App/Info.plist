@@ -38,6 +38,10 @@
 	<string>$(INFOPLIST_KEY_PodcastTransferGitTag)</string>
 	<key>PodcastTransferHomepageURL</key>
 	<string>$(INFOPLIST_KEY_PodcastTransferHomepageURL)</string>
+	<key>PodcastTransferSupportTitle</key>
+	<string>$(INFOPLIST_KEY_PodcastTransferSupportTitle)</string>
+	<key>PodcastTransferSupportURL</key>
+	<string>$(INFOPLIST_KEY_PodcastTransferSupportURL)</string>
 	<key>PodcastTransferTagline</key>
 	<string>$(INFOPLIST_KEY_PodcastTransferTagline)</string>
 </dict>

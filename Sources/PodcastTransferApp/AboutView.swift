@@ -12,6 +12,10 @@ struct AboutView: View {
       header
       Divider()
       metadata
+      if !info.supportLinks.isEmpty {
+        Divider()
+        support
+      }
       if !info.dataAccessNote.isEmpty {
         Divider()
         dataAccess
@@ -98,6 +102,24 @@ struct AboutView: View {
       Text(info.dataAccessNote)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var support: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("If this app saved you time, you can leave a tip to support ongoing updates.")
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      HStack(spacing: 10) {
+        ForEach(info.supportLinks) { link in
+          Link(destination: link.url) {
+            Label(link.title, systemImage: "heart")
+          }
+          .buttonStyle(.link)
+          .foregroundStyle(.pink)
+        }
+      }
     }
   }
 

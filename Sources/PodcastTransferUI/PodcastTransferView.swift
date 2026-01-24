@@ -9,6 +9,7 @@ import SwiftUI
 
 public struct PodcastTransferView: View {
   @Environment(\.openURL) private var openURL
+  @Environment(\.openWindow) private var openWindow
   @State private var viewModel: PodcastTransferViewModel
   @State private var isImporterPresented = false
   @State private var importerError: String?
@@ -144,6 +145,16 @@ public struct PodcastTransferView: View {
             Task { await PodcastsAppLauncher.open(openURL: openURL) }
           }
           .help("Open Apple Podcasts")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            openWindow(id: "about")
+          } label: {
+            Label("App Info", systemImage: "info.circle")
+              .labelStyle(.iconOnly)
+          }
+          .help("Show app information")
         }
 
         if let ejectableVolumeURL {
