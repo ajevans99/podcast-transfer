@@ -99,6 +99,164 @@ struct PodcastTransferViewSnapshots {
 
   @MainActor
   @Test
+  func episodesTableEmptySnapshot() async {
+    let view = EpisodesTableSnapshotHost(episodes: [])
+
+    assertSnapshotView(view, size: .init(width: 700, height: 420))
+  }
+
+  @MainActor
+  @Test
+  func sourceEpisodesGroupedSnapshot() async {
+    let view = SourceEpisodesView(
+      presentation: .grouped,
+      episodes: sampleEpisodes(),
+      selectedEpisodeIDs: [],
+      tableSelectedEpisodeIDs: .constant([]),
+      isLoading: false,
+      sortOrder: .constant([]),
+      artworkLoader: ArtworkLoader(),
+      onToggle: { _ in },
+      onTableSelectionChanged: { _ in },
+      onRefresh: {}
+    )
+
+    assertSnapshotView(view, size: .init(width: 700, height: 520))
+  }
+
+  @MainActor
+  @Test
+  func sourceEpisodesTableSnapshot() async {
+    let view = SourceEpisodesTableSnapshotHost(episodes: sampleEpisodes())
+
+    assertSnapshotView(view, size: .init(width: 700, height: 520))
+  }
+
+  @MainActor
+  @Test
+  func destinationControlsEmptySnapshot() async {
+    let view = DestinationControlsView(destination: nil, onChooseFolder: {})
+
+    assertSnapshotView(view, size: .init(width: 560, height: 140))
+  }
+
+  @MainActor
+  @Test
+  func destinationControlsSelectedSnapshot() async {
+    let view = DestinationControlsView(
+      destination: URL(fileURLWithPath: "/Volumes/Podcasts/Transfer"),
+      onChooseFolder: {}
+    )
+
+    assertSnapshotView(view, size: .init(width: 560, height: 160))
+  }
+
+  @MainActor
+  @Test
+  func destinationInspectorUnmountedSnapshot() async {
+    let view = DestinationInspectorView(
+      destination: URL(fileURLWithPath: "/Volumes/NotMounted/Podcasts"),
+      episodes: [],
+      artworkLoader: ArtworkLoader(),
+      onChooseFolder: {},
+      onDelete: { _ in }
+    )
+
+    assertSnapshotView(view, size: .init(width: 520, height: 420))
+  }
+
+  @MainActor
+  @Test
+  func destinationEpisodeRowSnapshot() async {
+    let view = DestinationEpisodeRow(
+      episode: sampleEpisodes()[0],
+      artworkLoader: ArtworkLoader(),
+      onDelete: {}
+    )
+
+    assertSnapshotView(view, size: .init(width: 520, height: 120))
+  }
+
+  @MainActor
+  @Test
+  func selectionHintSnapshot() async {
+    let view = SelectionHintView()
+
+    assertSnapshotView(view, size: .init(width: 320, height: 80))
+  }
+
+  @MainActor
+  @Test
+  func statusSummaryIdleLoadingSnapshot() async {
+    let view = StatusSummaryView(state: .idle, isLoading: true)
+
+    assertSnapshotView(view, size: .init(width: 320, height: 100))
+  }
+
+  @MainActor
+  @Test
+  func statusSummaryInProgressSnapshot() async {
+    let view = StatusSummaryView(
+      state: .inProgress(progress: sampleProgress()),
+      isLoading: false
+    )
+
+    assertSnapshotView(view, size: .init(width: 360, height: 120))
+  }
+
+  @MainActor
+  @Test
+  func statusSummaryFinishedSnapshot() async {
+    let view = StatusSummaryView(
+      state: .finished(sampleOutcome()),
+      isLoading: false
+    )
+
+    assertSnapshotView(view, size: .init(width: 520, height: 140))
+  }
+
+  @MainActor
+  @Test
+  func statusSummaryFailedSnapshot() async {
+    let view = StatusSummaryView(
+      state: .failed("Transfer failed: permission denied"),
+      isLoading: false
+    )
+
+    assertSnapshotView(view, size: .init(width: 520, height: 100))
+  }
+
+  @MainActor
+  @Test
+  func transferProgressSnapshot() async {
+    let view = TransferProgressView(progress: sampleProgress())
+
+    assertSnapshotView(view, size: .init(width: 360, height: 100))
+  }
+
+  @MainActor
+  @Test
+  func artworkThumbnailPlaceholderSnapshot() async {
+    let view = ArtworkThumbnail(image: nil)
+      .frame(width: 64, height: 64)
+
+    assertSnapshotView(view, size: .init(width: 120, height: 120))
+  }
+
+  @MainActor
+  @Test
+  func artworkThumbnailImageSnapshot() async {
+    let image =
+      NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)
+      ?? NSImage(size: NSSize(width: 64, height: 64))
+    let view = ArtworkThumbnail(image: image)
+      .frame(width: 64, height: 64)
+
+    assertSnapshotView(view, size: .init(width: 120, height: 120))
+  }
+
+  @MainActor
+  @Test
   func aboutViewSnapshot() async {
     let info = AboutInfo(
       bundleDisplayName: "Podcast Transfer",
@@ -228,4 +386,42 @@ private struct EpisodesTableSnapshotHost: View {
       onRefresh: {}
     )
   }
+}
+
+private struct SourceEpisodesTableSnapshotHost: View {
+  let episodes: [PodcastEpisode]
+  @State private var selected: Set<String> = []
+  @State private var sortOrder: [KeyPathComparator<PodcastEpisode>] = [
+    .init(\PodcastEpisode.createdAtSortable, order: .reverse)
+  ]
+
+  var body: some View {
+    SourceEpisodesView(
+      presentation: .table,
+      episodes: episodes,
+      selectedEpisodeIDs: selected,
+      tableSelectedEpisodeIDs: $selected,
+      isLoading: false,
+      sortOrder: $sortOrder,
+      artworkLoader: ArtworkLoader(),
+      onToggle: { _ in },
+      onTableSelectionChanged: { selected = $0 },
+      onRefresh: {}
+    )
+  }
+}
+
+private func sampleProgress() -> TransferState.Progress {
+  .init(completed: 3, total: 12)
+}
+
+private func sampleOutcome() -> TransferOutcome {
+  .init(
+    destination: URL(fileURLWithPath: "/Volumes/Podcasts/Transfer"),
+    copied: 12,
+    skipped: 2,
+    failed: [
+      .init(source: URL(fileURLWithPath: "/tmp/failed.m4a"), reason: "Read error")
+    ]
+  )
 }
