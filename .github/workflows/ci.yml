@@ -66,8 +66,4 @@ jobs:
 
       - name: Build on macOS
         run: |
-          set -o pipefail && xcodebuild \
-            -scheme spm-template-Package \
-            -destination generic/platform=macOS \
-            -skipPackagePluginValidation \
-            build | xcbeautify --renderer github-actions
+          set -o pipefail && make build | xcbeautify --renderer github-actions

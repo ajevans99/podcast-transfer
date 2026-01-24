@@ -1,5 +1,7 @@
 ## Podcast Transfer (macOS SwiftUI)
 
+Transfer your Apple Podcasts downloads to any folder.
+
 A Swift 6 macOS SwiftUI app that scans downloaded Apple Podcasts from
 `~/Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Podcasts`
 and copies them to an external MP3 device in one click. The codebase is fully modular
@@ -30,7 +32,7 @@ open PodcastTransfer.xcodeproj
 ### Testing
 
 - Unit tests: `swift test --filter PodcastTransferCoreTests`
-- Snapshot tests: set `RECORD_SNAPSHOTS=1` the first time to record baselines, then `swift test --filter PodcastTransferSnapshotTests`
+- Snapshot tests: set `SNAPSHOT_TESTING_RECORD=all` to record baselines, then re-run without it to verify
 
 ### Tooling
 

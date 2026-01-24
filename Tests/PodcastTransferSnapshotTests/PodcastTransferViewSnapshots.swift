@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodcastTransferUI
 
-/// SNAPSHOT_TESTING_RECORD = 1`
+/// To record snapshots: `SNAPSHOT_TESTING_RECORD=all make test`
 @Suite
 struct PodcastTransferViewSnapshots {
   @MainActor

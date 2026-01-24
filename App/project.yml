@@ -22,12 +22,23 @@ targets:
       PRODUCT_NAME: "Podcast Transfer"
       PRODUCT_BUNDLE_IDENTIFIER: us.atlasapps.podcasttransfer
       SWIFT_VERSION: 6.0
-      GENERATE_INFOPLIST_FILE: YES
+      GENERATE_INFOPLIST_FILE: NO
+      INFOPLIST_FILE: Info.plist
+      MARKETING_VERSION: 0.1.0
+      CURRENT_PROJECT_VERSION: 1
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       INFOPLIST_KEY_CFBundleIconName: AppIcon
       INFOPLIST_KEY_CFBundleDisplayName: "Podcast Transfer"
       INFOPLIST_KEY_CFBundleName: "Podcast Transfer"
       INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+      INFOPLIST_KEY_PodcastTransferTagline: "Transfer your Apple Podcasts downloads to any folder."
+      INFOPLIST_KEY_PodcastTransferAuthor: "Austin Evans"
+      INFOPLIST_KEY_PodcastTransferHomepageURL: "https://github.com/ajevans99/podcast-transfer"
+      INFOPLIST_KEY_PodcastTransferDataAccessNote: "Scans local Apple Podcasts downloads and reads local metadata to identify episodes. No data leaves your Mac."
+      # Overridden by `make build` for local builds.
+      INFOPLIST_KEY_PodcastTransferGitSHA: ""
+      INFOPLIST_KEY_PodcastTransferGitTag: ""
+      INFOPLIST_KEY_PodcastTransferBuildIdentifier: ""
       CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: 3Z68NFJBHS
 packages:

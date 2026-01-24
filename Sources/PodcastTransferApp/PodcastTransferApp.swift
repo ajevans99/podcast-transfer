@@ -24,5 +24,10 @@ struct PodcastTransferApp: App {
     .commands {
       PodcastTransferCommands()
     }
+
+    Window("About Podcast Transfer", id: "about") {
+      AboutView()
+    }
+    .windowResizability(.contentSize)
   }
 }

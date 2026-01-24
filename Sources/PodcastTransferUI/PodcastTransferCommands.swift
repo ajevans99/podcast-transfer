@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct PodcastTransferCommands: Commands {
   @EnvironmentObject private var sceneModel: PodcastTransferSceneModel
+  @Environment(\.openWindow) private var openWindow
   @Environment(\.openURL) private var openURL
   @FocusedValue(\.sourcePresentation)
   private var sourcePresentationBinding: Binding<SourcePresentation>?
@@ -12,6 +13,12 @@ public struct PodcastTransferCommands: Commands {
   public init() {}
 
   public var body: some Commands {
+    CommandGroup(replacing: .appInfo) {
+      Button("About Podcast Transfer") {
+        openWindow(id: "about")
+      }
+    }
+
     CommandGroup(after: .newItem) {
       RefreshButton(
         action: {
