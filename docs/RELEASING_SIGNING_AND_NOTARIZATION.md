@@ -53,7 +53,22 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-2. The workflow will build, sign, notarize, staple, and attach `PodcastTransfer.zip` to the GitHub Release.
+2. The workflow will build, sign, notarize, staple, and attach:
+
+- `PodcastTransfer.dmg` (drag-and-drop installer)
+- `PodcastTransfer.zip` (a zipped `.app`, useful for notarization/debugging)
+
+The DMG uses `docs/marketing/dmg.png` as its background image.
+
+## Testing the release pipeline (recommended)
+
+Before pushing a real tag, run the workflow manually:
+
+1. Configure the required secrets (signing + notarization).
+2. In GitHub Actions, run the **Release** workflow via **Run workflow**.
+3. Download the produced artifacts (`PodcastTransfer.dmg` and `PodcastTransfer.zip`) from the workflow run.
+
+Manual runs do not create a GitHub Release; only tag pushes do.
 
 ## Troubleshooting
 
