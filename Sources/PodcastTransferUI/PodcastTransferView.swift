@@ -1,6 +1,8 @@
+import Dependencies
 import Foundation
 import PodcastTransferCore
 import PodcastTransferFeature
+import PodcastTransferTelemetry
 import SwiftUI
 
 #if os(macOS)
@@ -10,6 +12,7 @@ import SwiftUI
 public struct PodcastTransferView: View {
   @Environment(\.openURL) private var openURL
   @Environment(\.openWindow) private var openWindow
+  @Dependency(\.telemetryClient) private var telemetryClient
   @State private var viewModel: PodcastTransferViewModel
   @State private var isImporterPresented = false
   @State private var importerError: String?
@@ -121,8 +124,14 @@ public struct PodcastTransferView: View {
 
           Menu {
             SelectionMenuContent(
-              selectAll: { viewModel.selectAll() },
-              clearSelection: { viewModel.clearSelection() }
+              selectAll: {
+                telemetryClient.track(.selectionAction(.selectAll))
+                viewModel.selectAll()
+              },
+              clearSelection: {
+                telemetryClient.track(.selectionAction(.clearSelection))
+                viewModel.clearSelection()
+              }
             )
           } label: {
             Label("Selection", systemImage: "checkmark.circle")
@@ -132,6 +141,7 @@ public struct PodcastTransferView: View {
 
         ToolbarItem(placement: .primaryAction) {
           RefreshButton {
+            telemetryClient.track(.toolbarAction(.refresh))
             Task {
               await viewModel.loadEpisodes()
               await viewModel.loadDestinationEpisodes()
@@ -142,6 +152,7 @@ public struct PodcastTransferView: View {
 
         ToolbarItem(placement: .primaryAction) {
           OpenPodcastsButton {
+            telemetryClient.track(.toolbarAction(.openPodcasts))
             Task { await PodcastsAppLauncher.open(openURL: openURL) }
           }
           .help("Open Apple Podcasts")
@@ -149,6 +160,7 @@ public struct PodcastTransferView: View {
 
         ToolbarItem(placement: .primaryAction) {
           Button {
+            telemetryClient.track(.toolbarAction(.appInfo))
             openWindow(id: "about")
           } label: {
             Label("App Info", systemImage: "info.circle")
@@ -160,6 +172,7 @@ public struct PodcastTransferView: View {
         if let ejectableVolumeURL {
           ToolbarItem(placement: .primaryAction) {
             Button {
+              telemetryClient.track(.toolbarAction(.eject))
               Task { await ejectDestinationVolume(at: ejectableVolumeURL) }
             } label: {
               Label("Eject", systemImage: "eject")
@@ -204,10 +217,16 @@ public struct PodcastTransferView: View {
       lastTableSelectedEpisodeIDs = newValue
     }
     .onChange(of: sourcePresentation) { _, newValue in
+      telemetryClient.track(
+        .viewModeChanged(newValue == .table ? .table : .grouped)
+      )
       if newValue == .table {
         tableSelectedEpisodeIDs = viewModel.selectedEpisodeIDs
         lastTableSelectedEpisodeIDs = viewModel.selectedEpisodeIDs
       }
+    }
+    .onChange(of: isDestinationInspectorPresented) { _, newValue in
+      telemetryClient.track(.destinationInspectorToggled(isPresented: newValue))
     }
     .onChange(of: viewModel.state) { _, newValue in
       if case .finished = newValue {

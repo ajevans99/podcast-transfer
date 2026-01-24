@@ -21,6 +21,8 @@ struct AboutView: View {
         dataAccess
       }
       Divider()
+      telemetry
+      Divider()
       acknowledgements
     }
     .padding(20)
@@ -120,6 +122,30 @@ struct AboutView: View {
           .foregroundStyle(.pink)
         }
       }
+    }
+  }
+
+  private var telemetry: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Telemetry")
+        .font(.headline)
+      Text(
+        "Podcast Transfer uses privacy-friendly TelemetryDeck to collect anonymous usage signals (for example, which buttons are used and transfer outcomes). No personal data or episode content is sent."
+      )
+      .foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
+
+      HStack(spacing: 12) {
+        Link(
+          "TelemetryDeck Privacy",
+          destination: URL(string: "https://telemetrydeck.com/privacy/")!
+        )
+        Link(
+          "Privacy FAQ",
+          destination: URL(string: "https://telemetrydeck.com/docs/guides/privacy-faq/")!
+        )
+      }
+      .font(.callout)
     }
   }
 

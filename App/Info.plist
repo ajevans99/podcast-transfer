@@ -42,6 +42,8 @@
 	<string>$(INFOPLIST_KEY_PodcastTransferSupportTitle)</string>
 	<key>PodcastTransferSupportURL</key>
 	<string>$(INFOPLIST_KEY_PodcastTransferSupportURL)</string>
+	<key>PodcastTransferTelemetryAppID</key>
+	<string>$(INFOPLIST_KEY_PodcastTransferTelemetryAppID)</string>
 	<key>PodcastTransferTagline</key>
 	<string>$(INFOPLIST_KEY_PodcastTransferTagline)</string>
 </dict>

@@ -3,6 +3,7 @@ import Foundation
 import OSLog
 import Observation
 import PodcastTransferCore
+import PodcastTransferTelemetry
 import Sharing
 
 @Observable
@@ -18,6 +19,9 @@ public final class PodcastTransferViewModel {
 
   @ObservationIgnored
   @Dependency(\.destinationClient) var destinationClient
+
+  @ObservationIgnored
+  @Dependency(\.telemetryClient) var telemetryClient
 
   @ObservationIgnored
   @Shared(.podcastDestination) public var persistedDestination: URL? = nil
@@ -83,6 +87,9 @@ public final class PodcastTransferViewModel {
 
   public func transferAll() async {
     guard let destination = persistedDestination else {
+      telemetryClient.track(
+        .transferFailed(reason: .noDestination, selectedCount: selectedEpisodeIDs.count)
+      )
       state = .failed("Select a destination first.")
       return
     }
@@ -90,17 +97,31 @@ public final class PodcastTransferViewModel {
     let chosenEpisodes: [PodcastEpisode] = episodes.filter { selectedEpisodeIDs.contains($0.id) }
 
     guard !chosenEpisodes.isEmpty else {
+      telemetryClient.track(
+        .transferFailed(reason: .noSelection, selectedCount: 0)
+      )
       state = .failed("Select at least one episode to transfer.")
       return
     }
 
+    telemetryClient.track(.transferStarted(selectedCount: chosenEpisodes.count))
     state = .inProgress(progress: .init(completed: 0, total: chosenEpisodes.count))
 
     do {
       let outcome = try await transferClient.transfer(chosenEpisodes, destination)
       state = .finished(outcome)
+      telemetryClient.track(
+        .transferCompleted(
+          copied: outcome.copied,
+          skipped: outcome.skipped,
+          failed: outcome.failed.count
+        )
+      )
       await loadDestinationEpisodes()
     } catch {
+      telemetryClient.track(
+        .transferFailed(reason: .transferError, selectedCount: chosenEpisodes.count)
+      )
       state = .failed(error.localizedDescription)
     }
   }

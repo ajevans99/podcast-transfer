@@ -13,6 +13,7 @@ let package = Package(
   products: [
     .library(name: "PodcastTransferCore", targets: ["PodcastTransferCore"]),
     .library(name: "PodcastTransferFeature", targets: ["PodcastTransferFeature"]),
+    .library(name: "PodcastTransferTelemetry", targets: ["PodcastTransferTelemetry"]),
     .library(name: "PodcastTransferUI", targets: ["PodcastTransferUI"]),
     .executable(name: "PodcastTransferApp", targets: ["PodcastTransferApp"]),
     .executable(name: "Playground", targets: ["Playground"]),
@@ -22,6 +23,7 @@ let package = Package(
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.7"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.7.4"),
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.6.0"),
+    .package(url: "https://github.com/TelemetryDeck/SwiftSDK", from: "2.11.0"),
   ],
   targets: [
     .target(
@@ -33,9 +35,17 @@ let package = Package(
       ]
     ),
     .target(
+      name: "PodcastTransferTelemetry",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "TelemetryDeck", package: "SwiftSDK"),
+      ]
+    ),
+    .target(
       name: "PodcastTransferFeature",
       dependencies: [
         "PodcastTransferCore",
+        "PodcastTransferTelemetry",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "Sharing", package: "swift-sharing"),
       ]
@@ -45,6 +55,8 @@ let package = Package(
       dependencies: [
         "PodcastTransferFeature",
         "PodcastTransferCore",
+        "PodcastTransferTelemetry",
+        .product(name: "Dependencies", package: "swift-dependencies"),
       ]
     ),
     .executableTarget(
@@ -53,6 +65,7 @@ let package = Package(
         "PodcastTransferUI",
         "PodcastTransferFeature",
         "PodcastTransferCore",
+        "PodcastTransferTelemetry",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "Sharing", package: "swift-sharing"),
       ]
@@ -76,11 +89,18 @@ let package = Package(
         "PodcastTransferUI",
         "PodcastTransferFeature",
         "PodcastTransferCore",
+        "PodcastTransferTelemetry",
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         .product(name: "Dependencies", package: "swift-dependencies"),
       ],
       resources: [
         .process("__Snapshots__")
+      ]
+    ),
+    .testTarget(
+      name: "PodcastTransferTelemetryTests",
+      dependencies: [
+        "PodcastTransferTelemetry"
       ]
     ),
   ]
