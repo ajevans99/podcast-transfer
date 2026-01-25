@@ -13,7 +13,7 @@ Options:
   --volname <name>          DMG volume name (default: Podcast Transfer)
   --window-size <w> <h>     DMG window size in pixels (default: 660 440)
   --app-icon-pos <x> <y>    App icon position (default: 140 210)
-	--apps-icon-pos <x> <y>   Applications drop-link position (default: 520 210)
+  --apps-icon-pos <x> <y>   Applications drop-link position (default: 520 210)
 EOF
 }
 
