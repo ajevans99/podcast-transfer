@@ -6,22 +6,12 @@ GIT_TAG ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "")
 GIT_BUILD_ID ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "")
 BUILD_NUMBER ?= $(shell git rev-list --count HEAD 2>/dev/null || echo "1")
 
-# Optional signing settings (primarily for CI/release builds). When provided, they are
-# forwarded to xcodebuild.
-XCODEBUILD_SIGNING_ARGS :=
-ifdef CODE_SIGN_IDENTITY
-XCODEBUILD_SIGNING_ARGS += CODE_SIGN_IDENTITY="$(CODE_SIGN_IDENTITY)"
-endif
-ifdef DEVELOPMENT_TEAM
-XCODEBUILD_SIGNING_ARGS += DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)"
-endif
-
 # Use the latest tag (optionally prefixed with 'v') as the app version.
 APP_VERSION ?= $(shell \
 	if [ -n "$(GIT_TAG)" ]; then echo "$(GIT_TAG)" | sed -E 's/^v//'; else echo "0.1.0"; fi \
 )
 
-.PHONY: format lint test build build-ci build-release-ci build-universal build-universal-ci resolve clean xcodegen
+.PHONY: format lint test build build-ci build-universal-ci resolve clean xcodegen
 
 .PHONY: dmg
 
@@ -61,39 +51,6 @@ build-ci:
 		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
 		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
 		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
-		build
-
-build-release-ci:
-	xcodebuild \
-		-project App/PodcastTransfer.xcodeproj \
-		-scheme PodcastTransfer \
-		-configuration Release \
-		-destination 'platform=macOS' \
-		ONLY_ACTIVE_ARCH=YES \
-		CODE_SIGNING_ALLOWED=NO \
-		CODE_SIGNING_REQUIRED=NO \
-		CODE_SIGN_IDENTITY="" \
-		MARKETING_VERSION="$(APP_VERSION)" \
-		CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)" \
-		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
-		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
-		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
-		build
-
-build-universal:
-	xcodebuild \
-		-project App/PodcastTransfer.xcodeproj \
-		-scheme PodcastTransfer \
-		-configuration Release \
-		-destination 'platform=macOS' \
-		ARCHS="arm64 x86_64" \
-		ONLY_ACTIVE_ARCH=NO \
-		MARKETING_VERSION="$(APP_VERSION)" \
-		CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)" \
-		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
-		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
-		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
-		$(XCODEBUILD_SIGNING_ARGS) \
 		build
 
 build-universal-ci:
@@ -138,7 +95,7 @@ dmg:
 	fi; \
 	if [[ -z "$$APP_PATH" ]]; then \
 		echo "APP_PATH is not set and no built app was found in DerivedData." >&2; \
-		echo "Build one first (e.g. make build-release-ci), then re-run: make dmg" >&2; \
+		echo "Build one first (e.g. make build or make build-universal-ci), then re-run: make dmg" >&2; \
 		exit 1; \
 	fi; \
 	bash Scripts/create_dmg.sh --app-path "$$APP_PATH" --output "PodcastTransfer.dmg"
