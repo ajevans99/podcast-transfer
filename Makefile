@@ -21,7 +21,9 @@ APP_VERSION ?= $(shell \
 	if [ -n "$(GIT_TAG)" ]; then echo "$(GIT_TAG)" | sed -E 's/^v//'; else echo "0.1.0"; fi \
 )
 
-.PHONY: format lint test build build-ci build-universal build-universal-ci resolve clean xcodegen
+.PHONY: format lint test build build-ci build-release-ci build-universal build-universal-ci resolve clean xcodegen
+
+.PHONY: dmg
 
 xcodegen:
 	cd App && $(XCODEGEN) generate
@@ -51,6 +53,23 @@ build-ci:
 		-scheme PodcastTransfer \
 		-configuration Debug \
 		-destination 'platform=macOS' \
+		CODE_SIGNING_ALLOWED=NO \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="" \
+		MARKETING_VERSION="$(APP_VERSION)" \
+		CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)" \
+		INFOPLIST_KEY_PodcastTransferGitSHA="$(GIT_SHA)" \
+		INFOPLIST_KEY_PodcastTransferGitTag="$(GIT_TAG)" \
+		INFOPLIST_KEY_PodcastTransferBuildIdentifier="$(GIT_BUILD_ID)" \
+		build
+
+build-release-ci:
+	xcodebuild \
+		-project App/PodcastTransfer.xcodeproj \
+		-scheme PodcastTransfer \
+		-configuration Release \
+		-destination 'platform=macOS' \
+		ONLY_ACTIVE_ARCH=YES \
 		CODE_SIGNING_ALLOWED=NO \
 		CODE_SIGNING_REQUIRED=NO \
 		CODE_SIGN_IDENTITY="" \
@@ -103,3 +122,23 @@ resolve:
 
 clean:
 	swift package clean
+
+dmg:
+	@set -euo pipefail; \
+	APP_PATH="$${APP_PATH:-}"; \
+	if [[ -z "$$APP_PATH" ]]; then \
+		APP_PATH=$$(find ~/Library/Developer/Xcode/DerivedData \
+			\( \
+				-path "*/Build/Products/Release/Podcast Transfer.app" -o \
+				-path "*/Build/Products/Release/PodcastTransfer.app" -o \
+				-path "*/Build/Products/Debug/Podcast Transfer.app" -o \
+				-path "*/Build/Products/Debug/PodcastTransfer.app" \
+			\) \
+			-print -quit || true); \
+	fi; \
+	if [[ -z "$$APP_PATH" ]]; then \
+		echo "APP_PATH is not set and no built app was found in DerivedData." >&2; \
+		echo "Build one first (e.g. make build-release-ci), then re-run: make dmg" >&2; \
+		exit 1; \
+	fi; \
+	bash Scripts/create_dmg.sh --app-path "$$APP_PATH" --output "PodcastTransfer.dmg"

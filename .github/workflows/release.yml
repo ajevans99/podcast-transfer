@@ -189,54 +189,7 @@ jobs:
             exit 1
           fi
 
-          STAGE_DIR="$RUNNER_TEMP/dmg-stage"
-          rm -rf "$STAGE_DIR"
-          mkdir -p "$STAGE_DIR"
-
-          # The app is named from PRODUCT_NAME (currently "Podcast Transfer.app").
-          APP_BASENAME=$(basename "$APP_PATH")
-          ditto "$APP_PATH" "$STAGE_DIR/$APP_BASENAME"
-
-          # Use a Finder alias for /Applications so the icon renders correctly in the DMG.
-          # (create-dmg's --app-drop-link uses a symlink, which can appear as a generic/dashed folder.)
-          rm -rf "$STAGE_DIR/Applications"
-          osascript - "$STAGE_DIR" <<'APPLESCRIPT'
-          on run argv
-            set stageDir to item 1 of argv
-            tell application "Finder"
-              set theAlias to make alias file to POSIX file "/Applications" at POSIX file stageDir
-              set name of theAlias to "Applications"
-            end tell
-          end run
-          APPLESCRIPT
-
-          # Use the dedicated repo asset for the DMG background.
-          BACKGROUND_PATH="docs/marketing/dmg.png"
-          if [[ ! -f "$BACKGROUND_PATH" ]]; then
-            echo "DMG background not found at $BACKGROUND_PATH" >&2
-            exit 1
-          fi
-
-          # create-dmg does not do Retina scaling for the background image.
-          # Ensure the background image matches the window size in pixels.
-          BG_WIDTH=$(sips -g pixelWidth "$BACKGROUND_PATH" | awk -F': ' '/pixelWidth/ { print $2 }')
-          BG_HEIGHT=$(sips -g pixelHeight "$BACKGROUND_PATH" | awk -F': ' '/pixelHeight/ { print $2 }')
-          if [[ "$BG_WIDTH" != "660" || "$BG_HEIGHT" != "440" ]]; then
-            echo "DMG background must be 660x440 to match --window-size; got ${BG_WIDTH}x${BG_HEIGHT}." >&2
-            exit 1
-          fi
-
-          rm -f "PodcastTransfer.dmg"
-          create-dmg \
-            --volname "Podcast Transfer" \
-            --background "$BACKGROUND_PATH" \
-            --window-pos 200 120 \
-            --window-size 660 440 \
-            --icon-size 128 \
-            --icon "$APP_BASENAME" 180 230 \
-            --icon "Applications" 480 230 \
-            "PodcastTransfer.dmg" \
-            "$STAGE_DIR"
+          bash Scripts/create_dmg.sh --app-path "$APP_PATH" --output "PodcastTransfer.dmg"
 
       - name: Notarize DMG (notarytool)
         if: ${{ github.event_name == 'push' || inputs.notarize }}
