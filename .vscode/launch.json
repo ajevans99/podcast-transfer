@@ -6,26 +6,6 @@
       "request": "launch",
       "args": [],
       "cwd": "${workspaceFolder:podcast-transfer}",
-      "name": "Release Playground",
-      "preLaunchTask": "swift: Build Release Playground",
-      "target": "Playground",
-      "configuration": "release"
-    },
-    {
-      "type": "swift",
-      "request": "launch",
-      "args": [],
-      "cwd": "${workspaceFolder:podcast-transfer}",
-      "name": "Debug Playground",
-      "preLaunchTask": "swift: Build Debug Playground",
-      "target": "Playground",
-      "configuration": "debug"
-    },
-    {
-      "type": "swift",
-      "request": "launch",
-      "args": [],
-      "cwd": "${workspaceFolder:podcast-transfer}",
       "name": "Debug PodcastTransferApp",
       "target": "PodcastTransferApp",
       "configuration": "debug",

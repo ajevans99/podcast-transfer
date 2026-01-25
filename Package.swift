@@ -16,7 +16,6 @@ let package = Package(
     .library(name: "PodcastTransferTelemetry", targets: ["PodcastTransferTelemetry"]),
     .library(name: "PodcastTransferUI", targets: ["PodcastTransferUI"]),
     .executable(name: "PodcastTransferApp", targets: ["PodcastTransferApp"]),
-    .executable(name: "Playground", targets: ["Playground"]),
   ],
   dependencies: [
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.10.0"),
@@ -69,10 +68,6 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "Sharing", package: "swift-sharing"),
       ]
-    ),
-    .executableTarget(
-      name: "Playground",
-      dependencies: ["PodcastTransferFeature", "PodcastTransferCore"]
     ),
     .testTarget(
       name: "PodcastTransferCoreTests",

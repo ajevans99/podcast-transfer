@@ -72,9 +72,9 @@ open App/PodcastTransfer.xcodeproj
 
 - PodcastTransferCore — models, library scanning client, transfer client, destination store
 - PodcastTransferFeature — view model orchestration
+- PodcastTransferTelemetry — backend-agnostic telemetry client (live implementation uses TelemetryDeck)
 - PodcastTransferUI — SwiftUI views (list, destination picker, transfer status)
 - PodcastTransferApp — macOS app entry point
-- Playground — small CLI harness for preview data
 
 ## Dependencies
 

@@ -188,7 +188,6 @@ jobs:
             echo "APP_PATH is not set." >&2
             exit 1
           fi
-
           bash Scripts/create_dmg.sh --app-path "$APP_PATH" --output "PodcastTransfer.dmg"
 
       - name: Notarize DMG (notarytool)
