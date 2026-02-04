@@ -36,7 +36,7 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_PodcastTransferTagline: "Transfer your Apple Podcasts downloads to any folder."
         INFOPLIST_KEY_PodcastTransferAuthor: "Austin Evans"
-        INFOPLIST_KEY_PodcastTransferHomepageURL: "https://github.com/ajevans99/podcast-transfer"
+        INFOPLIST_KEY_PodcastTransferHomepageURL: "https://ajevans.dev/podcast-transfer"
         INFOPLIST_KEY_PodcastTransferSupportTitle: "Support Development"
         INFOPLIST_KEY_PodcastTransferSupportURL: "https://github.com/sponsors/ajevans99"
         INFOPLIST_KEY_PodcastTransferTelemetryAppID: "552F0968-C462-4979-AE19-11D8CEA9A4F8"
