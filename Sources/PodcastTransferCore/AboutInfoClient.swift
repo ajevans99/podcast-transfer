@@ -73,7 +73,7 @@ public struct AboutInfo: Sendable, Equatable {
     buildNumber: "0",
     tagline: "Transfer your Apple Podcasts downloads to any folder.",
     author: "",
-    homepageURL: URL(string: "https://github.com/ajevans99/podcast-transfer"),
+    homepageURL: URL(string: "https://ajevans.dev/podcast-transfer"),
     supportLinks: [
       .init(
         title: "Support Development",
