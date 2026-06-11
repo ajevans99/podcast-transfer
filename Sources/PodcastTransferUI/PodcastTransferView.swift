@@ -47,6 +47,10 @@ public struct PodcastTransferView: View {
 
           StatusSummaryView(state: viewModel.state, isLoading: viewModel.isLoading)
 
+          if viewModel.needsLibraryAccess {
+            LibraryAccessBanner { requestLibraryAccess() }
+          }
+
           SourceEpisodesView(
             presentation: sourcePresentation,
             episodes: viewModel.episodes,
@@ -305,6 +309,23 @@ public struct PodcastTransferView: View {
   private func playCompletionSound() {
     #if os(macOS)
       NSSound(named: "Glass")?.play()
+    #endif
+  }
+
+  private func requestLibraryAccess() {
+    #if os(macOS)
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = false
+      panel.canChooseDirectories = true
+      panel.allowsMultipleSelection = false
+      panel.message =
+        "Grant Podcast Transfer access to your Apple Podcasts downloads. "
+        + "Select the highlighted folder and click Grant Access."
+      panel.prompt = "Grant Access"
+      panel.directoryURL = viewModel.libraryAccessSuggestedDirectory
+
+      guard panel.runModal() == .OK, let url = panel.url else { return }
+      Task { await viewModel.grantLibraryAccess(url) }
     #endif
   }
 

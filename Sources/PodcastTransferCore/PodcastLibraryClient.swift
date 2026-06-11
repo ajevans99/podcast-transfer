@@ -19,106 +19,94 @@ extension PodcastLibraryClient {
     let logger = Logger(subsystem: "PodcastTransfer", category: "Library")
 
     return Self { @Sendable in
-      guard FileManager.default.fileExists(atPath: databaseURL.path) else {
-        logger.debug("Podcasts DB missing at \(databaseURL.path, privacy: .public)")
-        return []
-      }
-
-      func materializeArtworkURL(_ raw: String?) -> URL? {
-        guard var raw else { return nil }
-        raw = raw.replacingOccurrences(of: "{w}", with: "300")
-        raw = raw.replacingOccurrences(of: "{h}", with: "300")
-        raw = raw.replacingOccurrences(of: "{f}", with: "jpg")
-        if raw.contains("{") { return nil }
-        return URL(string: raw)
-      }
-
-      func dateFromAppleTimestamp(_ value: Double?) -> Date? {
-        guard let value else { return nil }
-        // Apple uses CFAbsoluteTime-style timestamps (seconds since 2001-01-01).
-        return Date(timeIntervalSinceReferenceDate: value)
-      }
-
-      let resourceKeys: Set<URLResourceKey> = [
-        .isRegularFileKey,
-        .fileSizeKey,
-        .creationDateKey,
-        .contentModificationDateKey,
-      ]
-
-      let db = try DatabaseQueue(path: databaseURL.path)
-      return try db.read { database in
-        let sql = """
-          SELECT
-            e.ZTITLE AS episodeTitle,
-            p.ZTITLE AS podcastTitle,
-            COALESCE(e.ZAUTHOR, p.ZAUTHOR) AS author,
-            e.ZDURATION AS duration,
-            e.ZASSETURL AS assetURL,
-            e.ZDOWNLOADDATE AS downloadDate,
-            e.ZPUBDATE AS pubDate,
-            e.ZARTWORKTEMPLATEURL AS episodeArtworkTemplateURL,
-            p.ZIMAGEURL AS podcastImageURL,
-            p.ZARTWORKTEMPLATEURL AS podcastArtworkTemplateURL
-          FROM ZMTEPISODE e
-          LEFT JOIN ZMTPODCAST p
-            ON p.Z_PK = e.ZPODCAST
-          WHERE e.ZASSETURL IS NOT NULL
-          """
-
-        let rows = try Row.fetchAll(database, sql: sql)
-        logger.debug("Loaded \(rows.count, privacy: .public) downloaded rows from SQLite")
-
-        var episodes: [PodcastEpisode] = []
-        episodes.reserveCapacity(rows.count)
-
-        for row in rows {
-          guard let assetURLString: String = row["assetURL"],
-            let fileURL = URL(string: assetURLString)
-          else { continue }
-
-          // Only show files that still exist on disk.
-          let resourceValues = try? fileURL.resourceValues(forKeys: resourceKeys)
-          guard resourceValues?.isRegularFile == true else { continue }
-          guard fileURL.isAudioFile else { continue }
-
-          let size = resourceValues?.fileSize.map(Int64.init) ?? 0
-          let createdAt =
-            dateFromAppleTimestamp(row["pubDate"]) ?? dateFromAppleTimestamp(row["downloadDate"])
-            ?? resourceValues?.creationDate
-            ?? resourceValues?.contentModificationDate
-
-          let episodeTitle: String? = row["episodeTitle"]
-          let podcastTitle: String? = row["podcastTitle"]
-          let author: String? = row["author"]
-          let duration: Double? = row["duration"]
-
-          let episodeArtworkTemplateURL: String? = row["episodeArtworkTemplateURL"]
-          let podcastImageURL: String? = row["podcastImageURL"]
-          let podcastArtworkTemplateURL: String? = row["podcastArtworkTemplateURL"]
-
-          let artworkURL =
-            materializeArtworkURL(episodeArtworkTemplateURL)
-            ?? materializeArtworkURL(podcastImageURL)
-            ?? materializeArtworkURL(podcastArtworkTemplateURL)
-
-          episodes.append(
-            PodcastEpisode(
-              title: episodeTitle ?? fileURL.deletingPathExtension().lastPathComponent,
-              podcastTitle: podcastTitle ?? "Unknown Podcast",
-              author: author,
-              duration: duration,
-              fileURL: fileURL,
-              fileSize: size,
-              createdAt: createdAt,
-              artworkURL: artworkURL
-            )
-          )
+      try PodcastLibraryAccess.withAccess {
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+          logger.debug("Podcasts DB missing at \(databaseURL.path, privacy: .public)")
+          return []
         }
 
-        // UI sorts again, but keep a sensible default here too.
-        return episodes.sorted { lhs, rhs in
-          (lhs.createdAt ?? .distantPast) > (rhs.createdAt ?? .distantPast)
+        func materializeArtworkURL(_ raw: String?) -> URL? {
+          guard var raw else { return nil }
+          raw = raw.replacingOccurrences(of: "{w}", with: "300")
+          raw = raw.replacingOccurrences(of: "{h}", with: "300")
+          raw = raw.replacingOccurrences(of: "{f}", with: "jpg")
+          if raw.contains("{") { return nil }
+          return URL(string: raw)
+        }
+
+        func dateFromAppleTimestamp(_ value: Double?) -> Date? {
+          guard let value else { return nil }
+          // Apple uses CFAbsoluteTime-style timestamps (seconds since 2001-01-01).
+          return Date(timeIntervalSinceReferenceDate: value)
+        }
+
+        let resourceKeys: Set<URLResourceKey> = [
+          .isRegularFileKey,
+          .fileSizeKey,
+          .creationDateKey,
+          .contentModificationDateKey,
+        ]
+
+        let db = try PodcastLibraryAccess.openReadOnlyDatabase(at: databaseURL)
+        return try db.read { database in
+          guard let sql = try PodcastLibrarySchema.episodeSelectSQL(database) else {
+            return []
+          }
+
+          let rows = try Row.fetchAll(database, sql: sql)
+          logger.debug("Loaded \(rows.count, privacy: .public) downloaded rows from SQLite")
+
+          var episodes: [PodcastEpisode] = []
+          episodes.reserveCapacity(rows.count)
+
+          for row in rows {
+            guard let assetURLString: String = row["assetURL"],
+              let fileURL = URL(string: assetURLString)
+            else { continue }
+
+            // Only show files that still exist on disk.
+            let resourceValues = try? fileURL.resourceValues(forKeys: resourceKeys)
+            guard resourceValues?.isRegularFile == true else { continue }
+            guard fileURL.isAudioFile else { continue }
+
+            let size = resourceValues?.fileSize.map(Int64.init) ?? 0
+            let createdAt =
+              dateFromAppleTimestamp(row["pubDate"]) ?? dateFromAppleTimestamp(row["downloadDate"])
+              ?? resourceValues?.creationDate
+              ?? resourceValues?.contentModificationDate
+
+            let episodeTitle: String? = row["episodeTitle"]
+            let podcastTitle: String? = row["podcastTitle"]
+            let author: String? = row["author"]
+            let duration: Double? = row["duration"]
+
+            let episodeArtworkTemplateURL: String? = row["episodeArtworkTemplateURL"]
+            let podcastImageURL: String? = row["podcastImageURL"]
+            let podcastArtworkTemplateURL: String? = row["podcastArtworkTemplateURL"]
+
+            let artworkURL =
+              materializeArtworkURL(episodeArtworkTemplateURL)
+              ?? materializeArtworkURL(podcastImageURL)
+              ?? materializeArtworkURL(podcastArtworkTemplateURL)
+
+            episodes.append(
+              PodcastEpisode(
+                title: episodeTitle ?? fileURL.deletingPathExtension().lastPathComponent,
+                podcastTitle: podcastTitle ?? "Unknown Podcast",
+                author: author,
+                duration: duration,
+                fileURL: fileURL,
+                fileSize: size,
+                createdAt: createdAt,
+                artworkURL: artworkURL
+              )
+            )
+          }
+
+          // UI sorts again, but keep a sensible default here too.
+          return episodes.sorted { lhs, rhs in
+            (lhs.createdAt ?? .distantPast) > (rhs.createdAt ?? .distantPast)
+          }
         }
       }
     }

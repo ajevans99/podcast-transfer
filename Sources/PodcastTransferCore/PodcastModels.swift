@@ -97,6 +97,15 @@ public enum TransferState: Equatable, Sendable {
 }
 
 public struct PodcastLibraryPaths {
+  /// Root of the Apple Podcasts Group Container. Granting access here covers both the
+  /// metadata database (`Documents/`) and the downloaded audio (`Library/Cache/`).
+  public static func applePodcastsGroupContainer() -> URL {
+    FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(
+        "Library/Group Containers/243LU875E5.groups.com.apple.podcasts"
+      )
+  }
+
   public static func defaultApplePodcastsDirectory() -> URL {
     FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(

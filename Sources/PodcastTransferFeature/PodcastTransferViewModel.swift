@@ -33,6 +33,9 @@ public final class PodcastTransferViewModel {
   public private(set) var isLoading = false
   public private(set) var lastError: String?
 
+  /// True when the app has not yet been granted access to the Apple Podcasts library.
+  public var needsLibraryAccess: Bool { !PodcastLibraryAccess.hasBookmark }
+
   public init() {}
 
   public func loadEpisodes() async {
@@ -53,6 +56,25 @@ public final class PodcastTransferViewModel {
       )
     }
     isLoading = false
+  }
+
+  /// Persists a security-scoped bookmark for the user-selected Podcasts folder and reloads.
+  public func grantLibraryAccess(_ url: URL) async {
+    do {
+      try PodcastLibraryAccess.storeBookmark(for: url)
+    } catch {
+      lastError = error.localizedDescription
+      logger.error(
+        "Failed to store library access bookmark: \(error.localizedDescription, privacy: .public)"
+      )
+      return
+    }
+    await loadEpisodes()
+  }
+
+  /// Default folder to point the access picker at: the Apple Podcasts Group Container.
+  public var libraryAccessSuggestedDirectory: URL {
+    PodcastLibraryPaths.applePodcastsGroupContainer()
   }
 
   public func loadDestinationEpisodes() async {
