@@ -20,7 +20,7 @@ jobs:
             os: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Not working https://github.com/swift-actions/setup-swift/issues/739
       # - name: Set up Swift ${{ matrix.swift }}
