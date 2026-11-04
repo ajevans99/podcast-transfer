@@ -42,6 +42,7 @@ extension PodcastLibraryClient {
 
         let resourceKeys: Set<URLResourceKey> = [
           .isRegularFileKey,
+          .isDirectoryKey,
           .fileSizeKey,
           .creationDateKey,
           .contentModificationDateKey,
@@ -61,15 +62,23 @@ extension PodcastLibraryClient {
 
           for row in rows {
             guard let assetURLString: String = row["assetURL"],
-              let fileURL = URL(string: assetURLString)
+              let fileURL = URL(string: assetURLString), fileURL.isFileURL
             else { continue }
 
             // Only show files that still exist on disk.
             let resourceValues = try? fileURL.resourceValues(forKeys: resourceKeys)
-            guard resourceValues?.isRegularFile == true else { continue }
-            guard fileURL.isAudioFile else { continue }
+            let isPackage =
+              fileURL.pathExtension.lowercased() == "movpkg" && resourceValues?.isDirectory == true
+            guard isPackage || (resourceValues?.isRegularFile == true && fileURL.isAudioFile) else {
+              continue
+            }
 
-            let size = resourceValues?.fileSize.map(Int64.init) ?? 0
+            let size: Int64
+            if isPackage {
+              size = try packageSize(at: fileURL)
+            } else {
+              size = resourceValues?.fileSize.map(Int64.init) ?? 0
+            }
             let createdAt =
               dateFromAppleTimestamp(row["pubDate"]) ?? dateFromAppleTimestamp(row["downloadDate"])
               ?? resourceValues?.creationDate
@@ -149,6 +158,27 @@ extension DependencyValues {
     get { self[PodcastLibraryClient.self] }
     set { self[PodcastLibraryClient.self] = newValue }
   }
+}
+
+private func packageSize(at directory: URL) throws -> Int64 {
+  var size: Int64 = 0
+  for url in try FileManager.default.contentsOfDirectory(
+    at: directory,
+    includingPropertiesForKeys: [
+      .isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey,
+    ]
+  ) {
+    let values = try url.resourceValues(
+      forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey]
+    )
+    guard values.isSymbolicLink != true else { continue }
+    if values.isRegularFile == true {
+      size += Int64(values.fileSize ?? 0)
+    } else if values.isDirectory == true {
+      size += try packageSize(at: url)
+    }
+  }
+  return size
 }
 
 extension URL {
