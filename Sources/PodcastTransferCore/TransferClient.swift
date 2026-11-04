@@ -21,77 +21,83 @@ extension TransferClient {
 
     return Self { episodes, destination in
       let fileManager = fileManager.wrappedValue
-      return try PodcastLibraryAccess.withAccess {
-        var copied = 0
-        var skipped = 0
-        var failures: [TransferFailure] = []
+      var copied = 0
+      var skipped = 0
+      var failures: [TransferFailure] = []
 
-        func sanitizeFilenameComponent(_ input: String) -> String {
-          let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-          if trimmed.isEmpty { return "" }
+      func sanitizeFilenameComponent(_ input: String) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
 
-          // Conservative set of replacements for cross-platform safety.
-          let invalidCharacters = CharacterSet(charactersIn: "/\\:?*\"<>|")
-          let parts = trimmed.components(separatedBy: invalidCharacters)
-          let joined = parts.joined(separator: "-")
-          let squashed = joined.replacingOccurrences(
-            of: "\\s+",
-            with: " ",
-            options: .regularExpression
-          )
-          return squashed.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        // Conservative set of replacements for cross-platform safety.
+        let invalidCharacters = CharacterSet(charactersIn: "/\\:?*\"<>|")
+        let parts = trimmed.components(separatedBy: invalidCharacters)
+        let joined = parts.joined(separator: "-")
+        let squashed = joined.replacingOccurrences(
+          of: "\\s+",
+          with: " ",
+          options: .regularExpression
+        )
+        return squashed.trimmingCharacters(in: .whitespacesAndNewlines)
+      }
 
-        func destinationFileName(for episode: PodcastEpisode) -> String {
-          let ext = episode.fileURL.pathExtension
-          let base = sanitizeFilenameComponent(episode.title)
-          let fallbackBase = sanitizeFilenameComponent(
-            episode.fileURL.deletingPathExtension().lastPathComponent
-          )
-          let finalBase = base.isEmpty ? fallbackBase : base
-          if ext.isEmpty { return finalBase }
-          return "\(finalBase).\(ext)"
-        }
+      func destinationFileName(for episode: PodcastEpisode) -> String {
+        let ext =
+          episode.fileURL.pathExtension.lowercased() == "movpkg"
+          ? "m4a" : episode.fileURL.pathExtension
+        let base = sanitizeFilenameComponent(episode.title)
+        let fallbackBase = sanitizeFilenameComponent(
+          episode.fileURL.deletingPathExtension().lastPathComponent
+        )
+        let finalBase = base.isEmpty ? fallbackBase : base
+        if ext.isEmpty { return finalBase }
+        return "\(finalBase).\(ext)"
+      }
 
+      try fileManager.createDirectory(
+        at: destination,
+        withIntermediateDirectories: true,
+        attributes: nil
+      )
+
+      for episode in episodes {
+        let showDirectory = destination.appendingPathComponent(episode.podcastTitle)
         try fileManager.createDirectory(
-          at: destination,
+          at: showDirectory,
           withIntermediateDirectories: true,
           attributes: nil
         )
+        let destinationURL = showDirectory.appendingPathComponent(
+          destinationFileName(for: episode)
+        )
 
-        for episode in episodes {
-          let showDirectory = destination.appendingPathComponent(episode.podcastTitle)
-          try fileManager.createDirectory(
-            at: showDirectory,
-            withIntermediateDirectories: true,
-            attributes: nil
-          )
-          let destinationURL = showDirectory.appendingPathComponent(
-            destinationFileName(for: episode)
-          )
-
-          if fileManager.fileExists(atPath: destinationURL.path) {
-            skipped += 1
-            continue
-          }
-
-          do {
-            try fileManager.copyItem(at: episode.fileURL, to: destinationURL)
-            copied += 1
-          } catch {
-            failures.append(
-              TransferFailure(source: episode.fileURL, reason: error.localizedDescription)
-            )
-          }
+        if fileManager.fileExists(atPath: destinationURL.path) {
+          skipped += 1
+          continue
         }
 
-        return TransferOutcome(
-          destination: destination,
-          copied: copied,
-          skipped: skipped,
-          failed: failures
-        )
+        do {
+          if episode.fileURL.pathExtension.lowercased() == "movpkg" {
+            try await MediaPackageAudio.export(from: episode.fileURL, to: destinationURL)
+          } else {
+            try PodcastLibraryAccess.withAccess {
+              try fileManager.copyItem(at: episode.fileURL, to: destinationURL)
+            }
+          }
+          copied += 1
+        } catch {
+          failures.append(
+            TransferFailure(source: episode.fileURL, reason: error.localizedDescription)
+          )
+        }
       }
+
+      return TransferOutcome(
+        destination: destination,
+        copied: copied,
+        skipped: skipped,
+        failed: failures
+      )
     }
   }
 

@@ -17,6 +17,9 @@ Podcast Transfer is a macOS app that finds episodes you’ve already downloaded 
 - Scans your local Apple Podcasts downloads and shows downloaded episodes.
 - Lets you pick a destination folder.
 - Copies episodes (audio files) to the destination.
+- Extracts audio from downloaded `.movpkg` episodes as M4A, without re-encoding or copying video.
+  Complete, unprotected audio fragments and supported cached interstitial audio are assembled locally;
+  incomplete or unsupported packages report a transfer error. Ordinary audio files are copied unchanged.
 
 ## Privacy
 
