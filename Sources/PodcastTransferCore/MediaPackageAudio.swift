@@ -31,8 +31,8 @@ enum MediaPackageAudio {
       }
     }
 
-    let staged = try PodcastLibraryAccess.withAccess {
-      try stage(package: package, in: workspace)
+    let staged = try await PodcastLibraryAccess.withAsyncAccess {
+      try await stage(package: package, in: workspace)
     }
     let (mainAsset, mainTrack) = try await audioTrack(in: staged.streams)
     let duration = try await mainAsset.load(.duration)
@@ -60,17 +60,28 @@ enum MediaPackageAudio {
         of: mainTrack,
         at: composition.duration
       )
+      var remaining = insertion.playoutLimit.map {
+        CMTime(seconds: $0, preferredTimescale: 48_000)
+      }
+      if let remaining, !remaining.isNumeric {
+        throw ExportError.invalidPackage("invalid interstitial playout limit.")
+      }
       for streams in insertion.streams {
+        if remaining == .zero { break }
         let (asset, audio) = try await audioTrack(in: streams)
         let adDuration = try await asset.load(.duration)
         guard adDuration.isNumeric, adDuration > .zero else {
           throw ExportError.invalidPackage("invalid interstitial audio duration.")
         }
+        let duration = remaining.map { min($0, adDuration) } ?? adDuration
         try track.insertTimeRange(
-          CMTimeRange(start: .zero, duration: adDuration),
+          CMTimeRange(start: .zero, duration: duration),
           of: audio,
           at: composition.duration
         )
+        if let available = remaining {
+          remaining = available - duration
+        }
       }
       cursor = position
     }
@@ -126,6 +137,7 @@ enum MediaPackageAudio {
   private struct Insertion {
     var offset: Double
     var streams: [[URL]]
+    var playoutLimit: Double?
   }
 
   private struct AssetList: Decodable {
@@ -144,9 +156,9 @@ enum MediaPackageAudio {
     }
   }
 
-  private static func stage(package: URL, in workspace: URL) throws -> StagedPackage {
+  private static func stage(package: URL, in workspace: URL) async throws -> StagedPackage {
     let boot = try document(at: package.appendingPathComponent("boot.xml"))
-    let streams = try stageStreams(package: package, boot: boot, in: workspace)
+    let streams = try await stageStreams(package: package, boot: boot, in: workspace)
     let playlistPaths = try boot.nodes(
       forXPath:
         "//*[local-name()='DataItem'][*[local-name()='Role']='Master']/*[local-name()='DataPath']"
@@ -183,11 +195,7 @@ enum MediaPackageAudio {
         .map { try attributes(String($0.dropFirst("#EXT-X-DATERANGE:".count))) }
         .filter { $0["CLASS"] == "com.apple.hls.interstitial" }
       guard !declarations.isEmpty else { continue }
-      guard let dateLine = lines.first(where: { $0.hasPrefix("#EXT-X-PROGRAM-DATE-TIME:") }),
-        let origin = date(String(dateLine.dropFirst("#EXT-X-PROGRAM-DATE-TIME:".count)))
-      else {
-        throw ExportError.invalidPackage("missing interstitial timeline origin.")
-      }
+      let origin = try playlistOrigin(lines)
       for attributes in declarations {
         guard let id = attributes["ID"] else {
           throw ExportError.invalidPackage("missing interstitial identifier.")
@@ -197,6 +205,15 @@ enum MediaPackageAudio {
           attributes["X-RESUME-OFFSET"].flatMap(Double.init) == 0
         else {
           throw ExportError.invalidPackage("unsupported interstitial timing.")
+        }
+        let playoutLimit: Double?
+        if let rawLimit = attributes["X-PLAYOUT-LIMIT"] {
+          guard let limit = Double(rawLimit), limit.isFinite, limit >= 0 else {
+            throw ExportError.invalidPackage("invalid interstitial playout limit.")
+          }
+          playoutLimit = limit
+        } else {
+          playoutLimit = nil
         }
         var remoteAssets: [String]
         if let uri = attributes["X-ASSET-URI"] {
@@ -238,14 +255,18 @@ enum MediaPackageAudio {
           }
           let adPackage = try localURL(path, in: localURL(adsPath, in: package))
           adStreams.append(
-            try stageStreams(
+            try await stageStreams(
               package: adPackage,
               boot: document(at: adPackage.appendingPathComponent("boot.xml")),
               in: workspace
             )
           )
         }
-        insertions[id] = Insertion(offset: start.timeIntervalSince(origin), streams: adStreams)
+        insertions[id] = Insertion(
+          offset: start.timeIntervalSince(origin),
+          streams: adStreams,
+          playoutLimit: playoutLimit
+        )
       }
     }
     return StagedPackage(
@@ -258,58 +279,83 @@ enum MediaPackageAudio {
     package: URL,
     boot: XMLDocument,
     in workspace: URL
-  ) throws -> [URL] {
+  ) async throws -> [URL] {
     let streams = try boot.nodes(
       forXPath: "//*[local-name()='Stream'][*[local-name()='Complete']='YES']/@ID"
     )
-    var outputs: [URL] = []
+    var firstError: (any Error)?
     for stream in streams {
       try Task.checkCancellation()
-      guard let id = stream.stringValue else { continue }
-      let directory = try localURL(id, in: package)
-      let info = try document(at: directory.appendingPathComponent("StreamInfoBoot.xml"))
-      guard try text("Complete", in: info.rootElement()) == "YES" else { continue }
-      let initial = try info.nodes(forXPath: "//*[local-name()='ISEG']")
-      let segments = try info.nodes(forXPath: "//*[local-name()='SEG']")
-      guard initial.count == 1, !segments.isEmpty else {
-        throw ExportError.invalidPackage("unsupported or missing audio initialization segments.")
-      }
-      let ordered = try segments.map { node -> (Int, XMLNode) in
-        guard let value = (node as? XMLElement)?.attribute(forName: "SeqNum")?.stringValue,
-          let sequence = Int(value)
-        else { throw ExportError.invalidPackage("missing segment sequence.") }
-        return (sequence, node)
-      }.sorted { $0.0 < $1.0 }
-      guard ordered.enumerated().allSatisfy({ $0.element.0 == $0.offset })
-      else {
-        throw ExportError.invalidPackage("missing or duplicate downloaded fragments.")
-      }
-      let output = workspace.appendingPathComponent("\(UUID().uuidString).mp4")
-      try Data().write(to: output)
-      let handle = try FileHandle(forWritingTo: output)
       do {
-        for node in initial + ordered.map(\.1) {
-          try Task.checkCancellation()
-          guard let element = node as? XMLElement,
-            let path = element.attribute(forName: "PATH")?.stringValue,
-            let length = element.attribute(forName: "Len")?.stringValue.flatMap(Int.init),
-            length > 0
-          else { throw ExportError.invalidPackage("invalid fragment metadata.") }
-          let data = try Data(contentsOf: localURL(path, in: directory))
-          guard data.count == length else {
-            throw ExportError.invalidPackage("a downloaded fragment is incomplete.")
-          }
-          try handle.write(contentsOf: data)
+        guard let id = stream.stringValue else { continue }
+        let directory = try localURL(id, in: package)
+        let info = try document(at: directory.appendingPathComponent("StreamInfoBoot.xml"))
+        guard try text("Complete", in: info.rootElement()) == "YES" else { continue }
+        let initial = try info.nodes(forXPath: "//*[local-name()='ISEG']")
+        let segments = try info.nodes(forXPath: "//*[local-name()='SEG']")
+        guard initial.count == 1, !segments.isEmpty else {
+          throw ExportError.invalidPackage("unsupported or missing audio initialization segments.")
         }
+        let ordered = try segments.map { node -> (Int, XMLNode) in
+          guard let value = (node as? XMLElement)?.attribute(forName: "SeqNum")?.stringValue,
+            let sequence = Int(value)
+          else { throw ExportError.invalidPackage("missing segment sequence.") }
+          return (sequence, node)
+        }.sorted { $0.0 < $1.0 }
+        guard let first = ordered.first else { continue }
+
+        // Probe only the initialization and first media fragment before copying a rendition.
+        let probe = workspace.appendingPathComponent("\(UUID().uuidString).mp4")
+        try Data().write(to: probe)
+        try append(initial + [first.1], to: probe, from: directory)
+        let asset = AVURLAsset(url: probe)
+        guard try await !asset.load(.hasProtectedContent),
+          try await !asset.loadTracks(withMediaType: .audio).isEmpty
+        else { continue }
+
+        guard ordered.enumerated().allSatisfy({ $0.element.0 == $0.offset }) else {
+          throw ExportError.invalidPackage("missing or duplicate downloaded fragments.")
+        }
+        let output = workspace.appendingPathComponent("\(UUID().uuidString).mp4")
+        try FileManager.default.copyItem(at: probe, to: output)
+        try append(ordered.dropFirst().map(\.1), to: output, from: directory)
+        return [output]
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch {
+        logger.error("Could not inspect downloaded stream: \(error.localizedDescription)")
+        if firstError == nil { firstError = error }
+      }
+    }
+    throw firstError ?? ExportError.noAudio
+  }
+
+  private static func append(_ fragments: [XMLNode], to output: URL, from directory: URL) throws {
+    let handle = try FileHandle(forWritingTo: output)
+    do {
+      try handle.seekToEnd()
+      for node in fragments {
+        try Task.checkCancellation()
+        guard let element = node as? XMLElement,
+          let path = element.attribute(forName: "PATH")?.stringValue,
+          let length = element.attribute(forName: "Len")?.stringValue.flatMap(Int.init),
+          length > 0
+        else { throw ExportError.invalidPackage("invalid fragment metadata.") }
+        let data = try Data(contentsOf: localURL(path, in: directory))
+        guard data.count == length else {
+          throw ExportError.invalidPackage("a downloaded fragment is incomplete.")
+        }
+        try handle.write(contentsOf: data)
+      }
+      try handle.close()
+    } catch {
+      do {
         try handle.close()
       } catch {
-        try? handle.close()
-        throw error
+        logger.error("Could not close temporary audio file: \(error.localizedDescription)")
       }
-      outputs.append(output)
+      throw error
     }
-    guard !outputs.isEmpty else { throw ExportError.noAudio }
-    return outputs
   }
 
   private static func audioTrack(in streams: [URL]) async throws -> (AVURLAsset, AVAssetTrack) {
@@ -346,6 +392,33 @@ enum MediaPackageAudio {
     if let date = formatter.date(from: string) { return date }
     formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: string)
+  }
+
+  static func playlistOrigin(_ lines: [String]) throws -> Date {
+    var elapsed = 0.0
+    var pendingDuration: Double?
+    for rawLine in lines {
+      let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      if line.hasPrefix("#EXT-X-PROGRAM-DATE-TIME:") {
+        guard let timestamp = date(String(line.dropFirst("#EXT-X-PROGRAM-DATE-TIME:".count))) else {
+          throw ExportError.invalidPackage("invalid interstitial timeline origin.")
+        }
+        return timestamp.addingTimeInterval(-elapsed)
+      } else if line.hasPrefix("#EXTINF:") {
+        let value = line.dropFirst("#EXTINF:".count).split(separator: ",", maxSplits: 1).first
+        guard pendingDuration == nil, let value, let duration = Double(value),
+          duration.isFinite, duration >= 0
+        else { throw ExportError.invalidPackage("invalid media segment duration.") }
+        pendingDuration = duration
+      } else if !line.isEmpty, !line.hasPrefix("#") {
+        guard let duration = pendingDuration else {
+          throw ExportError.invalidPackage("missing media segment duration.")
+        }
+        elapsed += duration
+        pendingDuration = nil
+      }
+    }
+    throw ExportError.invalidPackage("missing interstitial timeline origin.")
   }
 
   private static func attributes(_ string: String) throws -> [String: String] {

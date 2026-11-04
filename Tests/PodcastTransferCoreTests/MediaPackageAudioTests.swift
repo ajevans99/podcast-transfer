@@ -19,6 +19,16 @@ struct MediaPackageAudioTests {
     let nonMedia = directory.appendingPathComponent("folder")
     try FileManager.default.createDirectory(at: nonMedia, withIntermediateDirectories: true)
     let missing = directory.appendingPathComponent("missing.movpkg")
+    let unreadable = try makePackage(in: directory.appendingPathComponent("unreadable"))
+    let inaccessible = unreadable.appendingPathComponent("inaccessible")
+    try FileManager.default.createDirectory(at: inaccessible, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: inaccessible.path)
+    defer {
+      try? FileManager.default.setAttributes(
+        [.posixPermissions: 0o700],
+        ofItemAtPath: inaccessible.path
+      )
+    }
     let databaseURL = directory.appendingPathComponent("library.sqlite")
     let database = try DatabaseQueue(path: databaseURL.path)
     try await database.write { db in
@@ -33,7 +43,9 @@ struct MediaPackageAudioTests {
           INSERT INTO ZMTPODCAST VALUES (1, 'Test Show');
           """
       )
-      for (index, url) in [package, audio, invalidPackage, nonMedia, missing].enumerated() {
+      for (index, url) in [package, audio, invalidPackage, nonMedia, missing, unreadable]
+        .enumerated()
+      {
         try db.execute(
           sql: "INSERT INTO ZMTEPISODE VALUES (?, 1, ?, ?)",
           arguments: [index, "Episode \(index)", index]
@@ -46,11 +58,13 @@ struct MediaPackageAudioTests {
     }
 
     let episodes = try await PodcastLibraryClient.live(databaseURL: databaseURL).loadEpisodes()
-    #expect(Set(episodes.map(\.fileURL)) == [package, audio])
+    #expect(Set(episodes.map(\.fileURL)) == [package, audio, unreadable])
     let packagedEpisode = try #require(episodes.first { $0.fileURL == package })
     #expect(packagedEpisode.podcastTitle == "Test Show")
     #expect(packagedEpisode.duration == 2)
     #expect(packagedEpisode.fileSize > 1_600)
+    let unreadableEpisode = try #require(episodes.first { $0.fileURL == unreadable })
+    #expect(unreadableEpisode.fileSize == 0)
   }
 
   @Test
@@ -99,16 +113,101 @@ struct MediaPackageAudioTests {
     #expect(try await asset.loadTracks(withMediaType: .video).isEmpty)
   }
 
+  @Test
+  func playlistOriginAccountsForSegmentsBeforeProgramDate() throws {
+    let lines = [
+      "#EXTM3U",
+      "#EXTINF:6.25,",
+      "first.m4s",
+      "#EXTINF:3.75,",
+      "second.m4s",
+      "#EXTINF:4.5,",
+      "#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:10Z",
+      "third.m4s",
+    ]
+    let expected = try #require(ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z"))
+    #expect(try MediaPackageAudio.playlistOrigin(lines) == expected)
+    #expect(throws: MediaPackageAudio.ExportError.self) {
+      try MediaPackageAudio.playlistOrigin([
+        "#EXTINF:not-a-duration,", "first.m4s", "#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:10Z",
+      ])
+    }
+  }
+
+  @Test(arguments: [(0.0, 2.0), (1.0, 3.0), (10.0, 4.0)])
+  func exportHonorsInterstitialPlayoutLimit(limit: Double, expectedDuration: Double) async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let package = try makePackage(in: directory, withInterstitial: true, playoutLimit: limit)
+    let output = directory.appendingPathComponent("limited.m4a")
+    try await MediaPackageAudio.export(from: package, to: output)
+    let duration = try await AVURLAsset(url: output).load(.duration).seconds
+    #expect(abs(duration - expectedDuration) < 0.1)
+  }
+
+  @Test
+  func playoutLimitSpansMultipleInterstitialAssets() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let package = try makePackage(
+      in: directory,
+      withInterstitial: true,
+      withAssetList: true,
+      playoutLimit: 3
+    )
+    let interstitials = package.appendingPathComponent("InterstitialAssets")
+    try FileManager.default.copyItem(
+      at: interstitials.appendingPathComponent("ad.movpkg"),
+      to: interstitials.appendingPathComponent("second.movpkg")
+    )
+    let boot = package.appendingPathComponent("boot.xml")
+    let xml = try String(contentsOf: boot, encoding: .utf8)
+    try xml.replacingOccurrences(
+      of: "</InterstitialAssets>",
+      with: """
+        <InterstitialAsset><NetworkURL>https://example.invalid/second</NetworkURL>
+        <PathToLocalCopy>second.movpkg</PathToLocalCopy></InterstitialAsset></InterstitialAssets>
+        """
+    ).write(to: boot, atomically: true, encoding: .utf8)
+    try """
+    {"ASSETS":[{"URI":"https://example.invalid/ad"},{"URI":"https://example.invalid/second"}]}
+    """.write(
+      to: package.appendingPathComponent("Data/ads.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let output = directory.appendingPathComponent("limited.m4a")
+    try await MediaPackageAudio.export(from: package, to: output)
+    let duration = try await AVURLAsset(url: output).load(.duration).seconds
+    #expect(abs(duration - 5) < 0.1)
+  }
+
+  @Test
+  func exportStagesAudioWithoutCopyingVideoRenditions() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let package = try makePackage(in: directory, withInterstitial: true)
+    try addVideoRendition(to: package)
+    try addVideoRendition(to: package.appendingPathComponent("InterstitialAssets/ad.movpkg"))
+    let output = directory.appendingPathComponent("audio-only.m4a")
+    try await MediaPackageAudio.export(from: package, to: output)
+    let asset = AVURLAsset(url: output)
+    #expect(try await asset.loadTracks(withMediaType: .audio).count == 1)
+    #expect(try await asset.loadTracks(withMediaType: .video).isEmpty)
+    #expect(abs((try await asset.load(.duration).seconds) - 4) < 0.1)
+  }
+
   @Test(arguments: [
     "incomplete", "missing-fragment", "truncated-fragment", "duplicate-sequence",
-    "escaping-path", "missing-interstitial",
+    "escaping-path", "missing-interstitial", "invalid-playout-limit",
   ])
   func invalidPackageReportsFailureWithoutPartialOutput(problem: String) async throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     let package = try makePackage(
       in: directory,
-      withInterstitial: problem == "missing-interstitial"
+      withInterstitial: problem == "missing-interstitial" || problem == "invalid-playout-limit"
     )
     let info = package.appendingPathComponent("audio/StreamInfoBoot.xml")
     switch problem {
@@ -143,6 +242,13 @@ struct MediaPackageAudioTests {
       try FileManager.default.removeItem(
         at: package.appendingPathComponent("InterstitialAssets/ad.movpkg")
       )
+    case "invalid-playout-limit":
+      let playlist = package.appendingPathComponent("audio/media.m3u8")
+      let text = try String(contentsOf: playlist, encoding: .utf8)
+      try text.replacingOccurrences(
+        of: "X-RESUME-OFFSET=0",
+        with: "X-RESUME-OFFSET=0,X-PLAYOUT-LIMIT=nan"
+      ).write(to: playlist, atomically: true, encoding: .utf8)
     default:
       Issue.record("Unknown package corruption")
     }
@@ -179,7 +285,8 @@ private func temporaryDirectory() throws -> URL {
 private func makePackage(
   in directory: URL,
   withInterstitial: Bool = false,
-  withAssetList: Bool = false
+  withAssetList: Bool = false,
+  playoutLimit: Double? = nil
 ) throws -> URL {
   let package = directory.appendingPathComponent("download.movpkg")
   let stream = package.appendingPathComponent("audio")
@@ -238,6 +345,7 @@ private func makePackage(
       withAssetList
       ? "X-ASSET-LIST=\"https://example.invalid/list\""
       : "X-ASSET-URI=\"https://example.invalid/ad\""
+    let limitAttribute = playoutLimit.map { ",X-PLAYOUT-LIMIT=\($0)" } ?? ""
     if withAssetList {
       try """
       {"ASSETS":[{"URI":"https://example.invalid/ad","DURATION":2}]}
@@ -246,11 +354,65 @@ private func makePackage(
     try """
     #EXTM3U
     #EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:00Z
-    #EXT-X-DATERANGE:ID="ad",CLASS="com.apple.hls.interstitial",START-DATE="2026-01-01T00:00:01Z",X-RESUME-OFFSET=0,\(attribute)
+    #EXT-X-DATERANGE:ID="ad",CLASS="com.apple.hls.interstitial",START-DATE="2026-01-01T00:00:01Z",X-RESUME-OFFSET=0,\(attribute)\(limitAttribute)
     """.write(to: stream.appendingPathComponent("media.m3u8"), atomically: true, encoding: .utf8)
   }
   return package
 }
+
+private func addVideoRendition(to package: URL) throws {
+  let bytes = try #require(Data(base64Encoded: blackVideo, options: .ignoreUnknownCharacters))
+  try #require(bytes.count == 1_720)
+  let video = package.appendingPathComponent("video")
+  try FileManager.default.createDirectory(at: video, withIntermediateDirectories: true)
+  try bytes.subdata(in: 0..<776).write(to: video.appendingPathComponent("init.initfrag"))
+  try bytes.subdata(in: 776..<1509).write(to: video.appendingPathComponent("0.frag"))
+  try """
+  <StreamInfo><Complete>YES</Complete><MediaInitializationSegments>
+  <ISEG PATH="init.initfrag" Len="776"/>
+  </MediaInitializationSegments><MediaSegments>
+  <SEG PATH="0.frag" Len="733" SeqNum="0"/>
+  <SEG PATH="missing-video.frag" Len="125" SeqNum="1"/>
+  </MediaSegments></StreamInfo>
+  """.write(
+    to: video.appendingPathComponent("StreamInfoBoot.xml"),
+    atomically: true,
+    encoding: .utf8
+  )
+  let boot = package.appendingPathComponent("boot.xml")
+  let xml = try String(contentsOf: boot, encoding: .utf8)
+  try xml.replacingOccurrences(
+    of: "<Streams>",
+    with: "<Streams><Stream ID=\"video\"><Complete>YES</Complete></Stream>"
+  ).write(to: boot, atomically: true, encoding: .utf8)
+}
+
+// Two seconds of generated black video with no audio.
+private let blackVideo = """
+  AAAAJGZ0eXBpc29tAAACAGlzb21pc282aXNvMmF2YzFtcDQxAAAC5G1vb3YAAABsbXZoZAAAAAAAAAAAAAAAAAAAA+gAAAAAAAEA
+  AAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+  AAIAAAHndHJhawAAAFx0a2hkAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAA
+  AQAAAAAAAAAAAAAAAAAAQAAAAAAQAAAAEAAAAAABg21kaWEAAAAgbWRoZAAAAAAAAAAAAAAAAAAAQAAAAAAAVcQAAAAAAC1oZGxy
+  AAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAAVmlkZW9IYW5kbGVyAAAAAS5taW5mAAAAFHZtaGQAAAABAAAAAAAAAAAAAAAkZGluZgAA
+  ABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAADuc3RibAAAAKJzdHNkAAAAAAAAAAEAAACSYXZjMQAAAAAAAAABAAAAAAAAAAAA
+  AAAAAAAAAAAQABAASAAAAEgAAAAAAAAAARRMYXZjNjMuMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAABj//wAAACxhdmNDAULACv/h
+  ABVnQsAK2nsBEAAAAwAQAAADACDxImoBAARozg/IAAAAEHBhc3AAAAABAAAAAQAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAA
+  AAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAAKG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAAAAAAAA
+  AAAAAAAAAGF1ZHRhAAAAWW1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALGlsc3QAAAAkqXRvbwAA
+  ABxkYXRhAAAAAQAAAABMYXZmNjMuMS4xMDIAAABwbW9vZgAAABBtZmhkAAAAAAAAAAEAAABYdHJhZgAAACR0ZmhkAAAAOQAAAAEA
+  AAAAAAADCAAAQAAAAAJlAQEAAAAAABR0ZmR0AQAAAAAAAAAAAAAAAAAAGHRydW4AAAAFAAAAAQAAAHgCAAAAAAACbW1kYXQAAAJT
+  BgX//0/cRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY1IHIzMjIyIGIzNTYwNWEgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVj
+  IC0gQ29weWxlZnQgMjAwMy0yMDI1IC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9
+  MCByZWY9MSBkZWJsb2NrPTA6MDowIGFuYWx5c2U9MDowIG1lPWRpYSBzdWJtZT0wIHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4
+  ZWRfcmVmPTAgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0wIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZh
+  c3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PTAgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9
+  MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9
+  MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9MCBpbnRyYV9yZWZyZXNoPTAgcmM9Y3JmIG1idHJl
+  ZT0wIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTAAgAAAAApl
+  iIQ6JigACQLgAAAAbG1vb2YAAAAQbWZoZAAAAAAAAAACAAAAVHRyYWYAAAAkdGZoZAAAADkAAAABAAAAAAAABeUAAEAAAAAACQEB
+  AAAAAAAUdGZkdAEAAAAAAAAAAABAAAAAABR0cnVuAAAAAQAAAAEAAAB0AAAAEW1kYXQAAAAFQZogFKUAAABWbWZyYQAAAD50ZnJh
+  AQAAAAAAAAEAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAwgBAQEAAAAAAABAAAAAAAAAAAXlAQEBAAAAEG1mcm8AAAAAAAAAVg==
+  """
 
 // Two seconds of generated silent AAC in fragmented MP4, not podcast content.
 private let silentAAC = """

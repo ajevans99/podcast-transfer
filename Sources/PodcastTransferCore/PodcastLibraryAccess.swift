@@ -93,6 +93,16 @@ public enum PodcastLibraryAccess {
     return try body()
   }
 
+  static func withAsyncAccess<T>(_ body: () async throws -> T) async rethrows -> T {
+    guard let scopedURL = resolveScopedURL() else {
+      return try await body()
+    }
+
+    let started = scopedURL.startAccessingSecurityScopedResource()
+    defer { if started { scopedURL.stopAccessingSecurityScopedResource() } }
+    return try await body()
+  }
+
   /// Opens the database in read-only mode to avoid writing sidecar files into the
   /// protected Group Container.
   public static func openReadOnlyDatabase(at databaseURL: URL) throws -> DatabaseQueue {

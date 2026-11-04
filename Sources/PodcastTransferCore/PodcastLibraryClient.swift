@@ -75,7 +75,12 @@ extension PodcastLibraryClient {
 
             let size: Int64
             if isPackage {
-              size = try packageSize(at: fileURL)
+              do {
+                size = try packageSize(at: fileURL)
+              } catch {
+                logger.error("Could not determine package size: \(error.localizedDescription)")
+                size = 0
+              }
             } else {
               size = resourceValues?.fileSize.map(Int64.init) ?? 0
             }
